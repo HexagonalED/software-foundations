@@ -147,7 +147,7 @@ Definition orb (b1:bool) (b2:bool) : bool :=
 (** The following four "unit tests" constitute a complete
     specification -- a truth table -- for the [orb] function: *)
 
-Example test_orb1:  (orb true  false) = true. 
+Example test_orb1:  (orb true  false) = true.
 Proof. simpl. reflexivity.  Qed.
 Example test_orb2:  (orb false false) = false.
 Proof. simpl. reflexivity.  Qed.
@@ -1331,36 +1331,52 @@ Proof.
     to turn in your piece of paper; this is just to encourage you to
     reflect before hacking!) *)
 
-(* prediction:  *)
+(* prediction: c *)
 Theorem ble_nat_refl : forall n:nat,
   true = ble_nat n n.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n. induction n as [| n'].
+    reflexivity.
+    simpl. rewrite <- IHn'. reflexivity.
+Qed.
 
+(* prediction: a *)
 Theorem zero_nbeq_S : forall n:nat,
   beq_nat 0 (S n) = false.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n. simpl. reflexivity.
+Qed.
 
+(* prediction: b *)
 Theorem andb_false_r : forall b : bool,
   andb b false = false.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros b. destruct b. reflexivity. reflexivity.
+Qed.
 
+(* prediction: c *)
 Theorem plus_ble_compat_l : forall n m p : nat, 
   ble_nat n m = true -> ble_nat (p + n) (p + m) = true.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m p. intros n_equals_m. induction p as [| p'].
+    simpl. rewrite -> n_equals_m. reflexivity.
+    simpl. rewrite -> IHp'. reflexivity.
+Qed.
 
+(* prediction: a *)
 Theorem S_nbeq_0 : forall n:nat,
   beq_nat (S n) 0 = false.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n. simpl. reflexivity.
+Qed.
 
+(* prediction: a *)
 Theorem mult_1_l : forall n:nat, 1 * n = n.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n. simpl. rewrite -> plus_0_r. reflexivity.
+Qed.
 
+(* prediction: b *)
 Theorem all3_spec : forall b c : bool,
     orb
       (andb b c)
@@ -1368,17 +1384,26 @@ Theorem all3_spec : forall b c : bool,
                (negb c))
   = true.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros b c. destruct b, c. reflexivity. reflexivity. reflexivity. reflexivity.
+Qed.
 
+(* prediction: c *)
 Theorem mult_plus_distr_r : forall n m p : nat,
   (n + m) * p = (n * p) + (m * p).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m p. induction n as [| n'].
+    simpl. reflexivity.
+    simpl. rewrite IHn'. rewrite plus_assoc. reflexivity.
+Qed.
 
+(* prediction: c *)
 Theorem mult_assoc : forall n m p : nat,
   n * (m * p) = (n * m) * p.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m p. induction n as [| n'].
+    simpl. reflexivity.
+    simpl. rewrite -> mult_plus_distr_r. rewrite IHn'. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, optional (plus_swap') *)
@@ -1396,8 +1421,12 @@ Proof.
 Theorem plus_swap' : forall n m p : nat, 
   n + (m + p) = m + (n + p).
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros n m p. induction n as [| n'].
+    simpl. reflexivity.
+    simpl. replace (m + S (n' + p)) with (S (m + (n' + p))).
+      rewrite IHn'. reflexivity.
+      rewrite plus_n_Sm. reflexivity.
+Qed.
 
 
 (** **** Exercise: 3 stars, optional *)
@@ -1476,7 +1505,32 @@ Qed.
         converting it to unary and then incrementing.  
 *)
 
-(* FILL IN HERE *)
+Inductive bin : Type :=
+  | z  : bin
+  | a0 : bin -> bin
+  | a1 : bin -> bin.
+
+Fixpoint binincr (n : bin) : bin :=
+  match n with
+    | z     => a1 z
+    | a0 n' => a1 n'
+    | a1 n' => a0 (binincr n')
+  end.
+
+Fixpoint bin2nat (n : bin) : nat :=
+  match n with
+    | z     => 0
+    | a0 n' => 2 * (bin2nat n')
+    | a1 n' => S (2 * (bin2nat n'))
+  end.
+
+Theorem bin_inc_nat_comm : forall n : bin, bin2nat (binincr n) = S (bin2nat n).
+Proof.
+  intros n. induction n as [| n' | n'].
+    simpl. reflexivity.
+    simpl. reflexivity.
+    simpl. rewrite -> IHn'. simpl. rewrite -> plus_0_r. rewrite <- plus_n_Sm. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 5 stars (binary_inverse) *)
@@ -1501,7 +1555,74 @@ Qed.
         it.
 *)
 
-(* FILL IN HERE *)
+Fixpoint nat2bin (n : nat) : bin :=
+  match n with
+    | 0        => z
+    | S n'     => binincr (nat2bin n')
+  end.
+
+Theorem conversion_id1 : forall n : nat, bin2nat (nat2bin n) = n.
+Proof.
+  intros n. induction n as [| n'].
+    reflexivity.
+    simpl. rewrite -> bin_inc_nat_comm. rewrite -> IHn'. reflexivity.
+Qed.
+
+(* The problem is that the natural number 0 has multiple possible representations as binary numbers (z and a0 z and a0 (a0 z) are all correct). *)
+
+Fixpoint normalize (n : bin) : bin :=
+  match n with
+    | z => z
+    | a0 n' => match normalize n' with
+      | z => z
+      | n'' => a0 n''
+    end
+    | a1 n' => a1 (normalize n')
+  end.
+
+Theorem normalize_fix : forall b : bin, normalize (normalize b) = normalize b.
+Proof.
+  intros b. induction b as [| b' | b' ].
+    reflexivity.
+    simpl. remember (normalize b') as normalize_b'. destruct normalize_b' as [| b'' | b'' ].
+      reflexivity.
+      replace (normalize (a0 (a0 b''))) with (match normalize (a0 b'') with | z => z | a0 c => a0 (a0 c) | a1 c => a0 (a1 c) end).
+        rewrite -> IHb'. reflexivity.
+        simpl. reflexivity.
+      rewrite -> Heqnormalize_b'. simpl. rewrite <- Heqnormalize_b'. simpl. rewrite <- IHb'. reflexivity.
+      simpl. rewrite -> IHb'. reflexivity.
+Qed.
+
+Theorem normalize_incr_comm : forall b : bin, normalize (binincr b) = binincr (normalize b).
+Proof.
+  intros b. induction b as [| b' | b'].
+    reflexivity.
+    simpl. remember (normalize b') as normalize_b'. destruct normalize_b'.
+      reflexivity.
+      reflexivity.
+      reflexivity.
+    simpl. rewrite -> IHb'. remember (normalize b') as normalize_b'. destruct normalize_b'.
+      reflexivity.
+      reflexivity.
+      reflexivity.
+Qed.
+
+Theorem normalize_plus : forall n : nat, nat2bin (n + n) = normalize (a0 (nat2bin n)).
+Proof.
+  intros n. induction n as [| n'].
+    simpl. reflexivity.
+    replace (nat2bin (S n' + S n')) with (binincr (binincr (nat2bin (n' + n')))).
+      rewrite -> IHn'. rewrite <- normalize_incr_comm. rewrite <- normalize_incr_comm. reflexivity.
+      simpl. rewrite <- plus_n_Sm. reflexivity.
+Qed.
+
+Theorem conversion_id2 : forall n : bin, nat2bin (bin2nat n) = normalize n.
+Proof.
+  intros n. induction n as [| n' | n'].
+    reflexivity.
+    simpl. rewrite -> plus_0_r. rewrite -> normalize_plus. simpl. rewrite -> IHn'. rewrite -> normalize_fix. reflexivity.
+    simpl. rewrite -> plus_0_r. rewrite -> normalize_plus. rewrite <- normalize_incr_comm. simpl. rewrite -> IHn'. rewrite -> normalize_fix. reflexivity.
+Qed.
 
 (** **** Exercise: 2 stars, optional (decreasing) *)
 (** The requirement that some argument to each function be
@@ -1516,6 +1637,20 @@ Qed.
     _does_ terminate on all inputs, but that Coq will _not_ accept
     because of this restriction. *)
 
-(* FILL IN HERE *)
+Fixpoint half (n : nat) : nat :=
+  match n with
+    | 0 => 0
+    | S 0 => 0
+    | S (S n') => S (half n')
+  end.
+
+(*
+Fixpoint nat2bin_firsttry (n : nat) : bin :=
+  match n, evenb n with
+    | 0, _     => z
+    | _, false => a0 (nat2bin_firsttry (half n))
+    | _, true  => a1 (nat2bin_firsttry (half n))
+  end.
+*)
 (** [] *)
 
