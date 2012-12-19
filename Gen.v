@@ -254,7 +254,15 @@ Theorem plus_n_n_injective_take2 : forall n m,
      n + n = m + m ->
      n = m.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m. generalize dependent n. induction m as [| m'].
+    intros n. destruct n as [| n'].
+      reflexivity.
+      intros contra. inversion contra.
+    intros n. destruct n as [| n'].
+      intros contra. inversion contra.
+      intros h. simpl in h. rewrite <- plus_n_Sm in h. rewrite <- plus_n_Sm in h. assert (n' = m') as H. apply IHm'. inversion h. reflexivity.
+        rewrite -> H. reflexivity.
+Qed.
 
 (** Now prove this by induction on [l]. *)
 
@@ -262,7 +270,12 @@ Theorem index_after_last: forall (n : nat) (X : Type) (l : list X),
      length l = n ->
      index (S n) l = None.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n X l. generalize dependent n. induction l as [| x xs].
+    reflexivity.
+    intros n. destruct n as [| n'].
+      intros contra. inversion contra.
+      intros h. simpl. apply IHxs. simpl in h. inversion h. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, optional (index_after_last_informal) *)
@@ -285,7 +298,16 @@ Theorem length_snoc''' : forall (n : nat) (X : Type)
      length l = n ->
      length (snoc l v) = S n. 
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n X v l. generalize dependent n. induction l as [| x xs].
+    intros n. destruct n as [| n'].
+      reflexivity.
+      intros contra. inversion contra.
+    intros n. destruct n as [| n'].
+      intros contra. inversion contra.
+      simpl. intros h. assert (length (snoc xs v) = S n').
+        apply IHxs. inversion h. reflexivity.
+        rewrite -> H. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars (app_length_cons) *)
@@ -296,15 +318,37 @@ Theorem app_length_cons : forall (X : Type) (l1 l2 : list X)
      length (l1 ++ (x :: l2)) = n ->
      S (length (l1 ++ l2)) = n.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros X l1 l2 x n. generalize dependent l2. generalize dependent n.
+  induction l1 as [| y ys].
+    intros n l2. simpl. intros h. apply h.
+    intros n l2. simpl. intros h. destruct n as [| n'].
+      inversion h.
+      assert (S (length (ys ++ l2)) = n').
+        apply IHys. inversion h. reflexivity.
+        rewrite -> H. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 4 stars, optional (app_length_twice) *)
 (** Prove this by induction on [l], without using app_length. *)
 
+Theorem app_length_cons' : forall (X : Type) (l1 l2 : list X) (x : X), length (l1 ++ (x:: l2)) = S (length (l1 ++ l2)).
+Proof.
+  intros X l1 l2 x'. remember (length (l1 ++ x' :: l2)) as len. symmetry. apply app_length_cons with (x:=x'). symmetry. apply Heqlen.
+Qed.
+
 Theorem app_length_twice : forall (X:Type) (n:nat) (l:list X),
      length l = n ->
      length (l ++ l) = n + n.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros X n' l. generalize dependent n'. induction l as [| x xs].
+    intros n'. destruct n'.
+      reflexivity.
+      intros contra. inversion contra.
+    intros n'. destruct n'.
+      intros contra. inversion contra.
+      simpl. intros h. rewrite <- plus_n_Sm. rewrite -> app_length_cons'. assert (length (xs ++ xs) = n' + n').
+        apply IHxs. inversion h. reflexivity.
+        rewrite -> H. reflexivity.
+Qed.
 (** [] *)
