@@ -92,7 +92,7 @@ Require Export Poly.
 (** **** Exercise: 1 star (varieties_of_beauty) *)
 (** How many different ways are there to show that [8] is beautiful? *)
 
-(* FILL IN HERE *)
+(* infinitely many, since you can use the rule [b_0] to construct arbitrarily large proof trees *)
 (** [] *)
 
 (** In Coq, we can express the definition of [beautiful] as
@@ -271,10 +271,13 @@ Print eight_is_beautiful'''.
 Theorem six_is_beautiful :
   beautiful 6.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  apply b_sum with (n:=3) (m:=3).
+    apply b_3.
+    apply b_3.
+Qed.
 
 Definition six_is_beautiful' : beautiful 6 :=
-  (* FILL IN HERE *) admit.
+  b_sum 3 3 b_3 b_3.
 (** [] *)
 
 (** **** Exercise: 1 star (nine_is_beautiful) *)
@@ -283,10 +286,13 @@ Definition six_is_beautiful' : beautiful 6 :=
 Theorem nine_is_beautiful :
   beautiful 9.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  apply b_sum with (n:=6) (m:=3).
+    apply six_is_beautiful.
+    apply b_3.
+Qed.
 
 Definition nine_is_beautiful' : beautiful 9 :=
-  (* FILL IN HERE *) admit.
+  b_sum 6 3 six_is_beautiful' b_3.
 (** [] *)
 
 
@@ -337,19 +343,26 @@ Check b_plus3''.
 (** **** Exercise: 2 stars (b_times2) *)
 Theorem b_times2: forall n, beautiful n -> beautiful (2*n).
 Proof.
-    (* FILL IN HERE *) Admitted.
+  intros n Hn. simpl. rewrite plus_0_r. apply b_sum. apply Hn. apply Hn. Show Proof.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, optional (b_times2') *)
 (** Write a proof object corresponding to [b_times2] above *)
 
 Definition b_times2': forall n, beautiful n -> beautiful (2*n) :=
-  (* FILL IN HERE *) admit.
+  fun n : nat => fun Hn : beautiful n => eq_ind_r (fun n0 : nat => beautiful (n + n0)) (b_sum n n Hn Hn) (plus_0_r n).
 
 (** **** Exercise: 2 stars (b_timesm) *)
 Theorem b_timesm: forall n m, beautiful n -> beautiful (m*n).
 Proof.
-   (* FILL IN HERE *) Admitted.
+  intros n m. induction m as [| m'].
+    simpl. intros h. apply b_0.
+    simpl. intros h. apply b_sum.
+      apply h.
+      apply IHm'.
+        apply h.
+Qed.
 (** [] *)
 
 (* ####################################################### *)
@@ -392,7 +405,17 @@ Inductive gorgeous : nat -> Prop :=
 (** Write out the definition of gorgeous numbers using the _inference
     rule_ notation.
  
-(* FILL IN HERE *)
+--------- (g_0)
+gorgeous0
+
+gorgeous n
+-------------- (g_plus3)
+gorgeous (n+3)
+
+gorgeous n
+-------------- (g_plus5)
+gorgeous (n+5)
+
 []
 *)
 
@@ -432,27 +455,39 @@ Admitted.
 Theorem gorgeous_plus13: forall n, 
   gorgeous n -> gorgeous (13+n).
 Proof.
-   (* FILL IN HERE *) Admitted.
+   intros n h. apply g_plus3. apply g_plus5. apply g_plus5. apply h. Show Proof.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars (gorgeous_plus13_po):
 Give the proof object for theorem [gorgeous_plus13] above. *)
 
 Definition gorgeous_plus13_po: forall n, gorgeous n -> gorgeous (13+n):=
-   (* FILL IN HERE *) admit.
+   fun (n : nat) (g : gorgeous n) => g_plus5 (8 + n) (g_plus5 (3 + n) (g_plus3 n g)).
 (** [] *)
 
 (** **** Exercise: 2 stars (gorgeous_sum) *)
 Theorem gorgeous_sum : forall n m,
   gorgeous n -> gorgeous m -> gorgeous (n + m).
 Proof.
- (* FILL IN HERE *) Admitted.
+  intros n m gn gm. induction gn as [| gn' | gn'].
+    apply gm.
+    apply g_plus3. apply IHgn.
+    apply g_plus5. apply IHgn.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars (beautiful__gorgeous) *)
 Theorem beautiful__gorgeous : forall n, beautiful n -> gorgeous n.
 Proof.
- (* FILL IN HERE *) Admitted.
+  intros n bn. induction bn as [| | | n m bna bnb].
+    apply g_0.
+    apply g_plus3. apply g_0.
+    apply g_plus5. apply g_0.
+    apply gorgeous_sum.
+      apply bnb.
+      apply IHbn1.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, optional (b_times2) *)
@@ -461,13 +496,18 @@ Proof.
 
 Lemma helper_g_times2 : forall x y z, x + (z + y)= z + x + y.
 Proof.
-   (* FILL IN HERE *) Admitted.
+  intros x y z. rewrite -> plus_assoc. replace (x + z) with (z + x). reflexivity.
+    apply plus_comm.
+Qed.
 
 Theorem g_times2: forall n, gorgeous n -> gorgeous (2*n).
 Proof.
    intros n H. simpl. 
    induction H.
-   (* FILL IN HERE *) Admitted.
+     apply g_0.
+     rewrite plus_0_r. rewrite helper_g_times2. apply g_plus3. apply g_plus3. rewrite plus_0_r in IHgorgeous. apply IHgorgeous.
+     rewrite plus_0_r. rewrite helper_g_times2. apply g_plus5. apply g_plus5. rewrite plus_0_r in IHgorgeous. apply IHgorgeous.
+Qed.
 (** [] *)
 
 
@@ -506,7 +546,10 @@ Inductive ev : nat -> Prop :=
 Theorem double_even : forall n,
   ev (double n).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n. induction n.
+    apply ev_0.
+    simpl. apply ev_SS. apply IHn. Show Proof.
+Qed.
 (** [] *)
 
 (** **** Exercise: 4 stars, optional (double_even_pfobj) *)
@@ -514,6 +557,13 @@ Proof.
     tactic proof.  (Before checking your answer, you'll want to
     strip out any uses of [Case], as these will make the proof
     object look a bit cluttered.) *)
+(* doesn't work:
+Fixpoint double_even' n : ev (double n) :=
+  match n with
+  | 0    => ev_0
+  | S n' => ev_SS (double_even n')
+  end.
+*)
 (** [] *)
 
 (** *** Discussion: Computational vs. Inductive Definitions *)
@@ -581,7 +631,6 @@ Qed.
 (** Could this proof also be carried out by induction on [n] instead
     of [E]?  If not, why not? *)
 
-(* FILL IN HERE *)
 (** [] *)
 
 (** The induction principle for inductively defined propositions does
@@ -613,7 +662,10 @@ Qed.
 Theorem ev_sum : forall n m,
    ev n -> ev m -> ev (n+m).
 Proof. 
-  (* FILL IN HERE *) Admitted.
+  intros n m evn evm. induction evn as [| evn'].
+    apply evm.
+    simpl. apply ev_SS. apply IHevn.
+Qed.
 (** [] *)
 
 (** Here's another situation where we want to analyze evidence for
@@ -649,7 +701,7 @@ Theorem SSev__even : forall n,
 Proof.
   intros n E. inversion E as [| n' E']. apply E'. Qed.
 
-(* Print SSev__even. *)
+Print SSev__even.
 
 (** This use of [inversion] may seem a bit mysterious at first.
     Until now, we've only used [inversion] on equality
@@ -681,7 +733,8 @@ Proof.
 Theorem SSSSev__even : forall n,
   ev (S (S (S (S n)))) -> ev n.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n h. inversion h as [| n' h']. inversion h' as [| n'' h'']. apply h''.
+Qed.
 
 (** The [inversion] tactic can also be used to derive goals by showing
     the absurdity of a hypothesis. *)
@@ -689,7 +742,8 @@ Proof.
 Theorem even5_nonsense : 
   ev 5 -> 2 + 2 = 9.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros h. inversion h as [| n h']. inversion h' as [| n' h'']. inversion h''.
+Qed.
 (** [] *)
 
 (** We can generally use [inversion] on inductive propositions.
@@ -712,7 +766,10 @@ Proof.
 Theorem ev_ev__ev : forall n m,
   ev (n+m) -> ev n -> ev m.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m evnm evn. induction evn as [| n' evn'].
+    apply evnm.
+    inversion evnm. apply IHevn'. apply H0.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, optional (ev_plus_plus) *)
@@ -724,7 +781,16 @@ Proof.
 Theorem ev_plus_plus : forall n m p,
   ev (n+m) -> ev (n+p) -> ev (m+p).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n' m' p' evnm evnp. apply ev_ev__ev with (n:=(n'+n')) (m:=(m'+p')).
+    replace (n' + n' + (m' + p')) with ((n' + m') + (n' + p')).
+      apply ev_sum.
+        apply evnm.
+        apply evnp.
+      replace (n' + p') with (p' + n').
+        rewrite plus_assoc. rewrite plus_comm. rewrite <- plus_assoc. rewrite <- plus_assoc. reflexivity.
+      apply plus_comm.
+    rewrite <- double_plus. apply double_even.
+Qed.
 (** [] *)
 
 (* ##################################################### *)
@@ -763,7 +829,7 @@ Check (beautiful 4).
 
 Theorem plus_2_2_is_4 : 
   2 + 2 = 4.
-Proof. reflexivity.  Qed.
+Proof. reflexivity.  Show Proof. Qed.
 
 (** But they can be used in many other ways.  For example, we
     can give a name to a proposition using a [Definition], just as we
@@ -915,7 +981,10 @@ Proof.
 Theorem plus_one_r' : forall n:nat, 
   n + 1 = S n.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  apply nat_ind.
+    reflexivity.
+    intros n h. simpl. rewrite -> h. reflexivity.
+Qed.
 (** [] *)
 
 (** The induction principles that Coq generates for other datatypes
@@ -954,6 +1023,7 @@ Inductive rgb : Type :=
   | green : rgb
   | blue : rgb.
 Check rgb_ind.
+(* ==> rgb_ind : forall P : rgb -> Prop, P red -> P green -> P blue -> forall c : rgb, P c *)
 (** [] *)
 
 (** Here's another example, this time with one of the constructors
@@ -980,6 +1050,12 @@ Inductive natlist1 : Type :=
   | nsnoc1 : natlist1 -> nat -> natlist1.
 
 (** Now what will the induction principle look like? *)
+(* ===> (modulo a little tidying)
+   natlist1_ind :
+      forall P : natlist1 -> Prop,
+         P nnil1  ->
+         (forall (l : natlist1) (n : nat), P l -> P (ncons l n)) ->
+         forall n : natlist1, P n *)
 (** [] *)
 
 (** From these examples, we can extract this general rule:
@@ -1006,8 +1082,8 @@ Inductive natlist1 : Type :=
     Give an [Inductive] definition of [ExSet]: *)
 
 Inductive ExSet : Type :=
-  (* FILL IN HERE *)
-.
+  | con1 : bool -> ExSet
+  | con2 : nat -> ExSet -> ExSet.
 (** [] *)
 
 (** What about polymorphic datatypes?
@@ -1041,6 +1117,14 @@ Inductive ExSet : Type :=
 Inductive tree (X:Type) : Type :=
   | leaf : X -> tree X
   | node : tree X -> tree X -> tree X.
+
+(*
+  tree_ind : forall (X : Type) (P : tree X -> Prop),
+    (forall (x : X), P (leaf X x)) ->
+    (forall (l : tree X) (r : tree X), P l -> P r -> P (node X l r)) ->
+    forall t : tree X, P t
+*)
+
 Check tree_ind.
 (** [] *)
 
@@ -1054,7 +1138,14 @@ Check tree_ind.
             (forall m : mytype X, P m -> 
                forall n : nat, P (constr3 X m n)) ->
             forall m : mytype X, P m                   
-*) 
+*)
+
+Inductive mytype (X:Type) : Type :=
+  | constr1 : X -> mytype X
+  | constr2 : nat -> mytype X
+  | constr3 : mytype X -> nat -> mytype X.
+Check mytype_ind.
+
 (** [] *)
 
 (** **** Exercise: 1 star, optional (foo) *)
@@ -1082,11 +1173,13 @@ Inductive foo' (X:Type) : Type :=
      foo'_ind :
         forall (X : Type) (P : foo' X -> Prop),
               (forall (l : list X) (f : foo' X),
-                    _______________________ -> 
-                    _______________________   ) ->
-             ___________________________________________ ->
-             forall f : foo' X, ________________________
+                    P f ->
+                    P (C1 X l f)) ->
+             P (C2 X) ->
+             forall f : foo' X, P f
 *)
+
+Check foo'_ind.
 
 (** [] *)
 
@@ -1381,7 +1474,15 @@ Proof.
     induction, and state the theorem and proof in terms of this
     defined proposition.  *)
 
-(* FILL IN HERE *)
+Definition plus_comm (n m : nat) : Prop := n + m = m + n.
+
+Theorem plus_is_comm : forall n m, plus_comm n m.
+Proof.
+  induction n as [| n'].
+    unfold plus_comm. intros m. rewrite -> plus_0_r. reflexivity.
+    unfold plus_comm. intros m. rewrite <- plus_n_Sm. simpl. rewrite -> IHn'. reflexivity.
+Qed.
+
 (** [] *)
 
 (* ##################################################### *)
@@ -1397,15 +1498,16 @@ Proof.
     [true_upto_n__true_everywhere] that makes
     [true_upto_n_example] work. *)
 
-(* 
-Fixpoint true_upto_n__true_everywhere 
-(* FILL IN HERE *)
+Fixpoint true_upto_n__true_everywhere (n : nat) (p : nat -> Prop) :=
+  match n with
+  | 0    => forall m, p m
+  | S n' => p n -> true_upto_n__true_everywhere n' p
+  end.
 
 Example true_upto_n_example :
     (true_upto_n__true_everywhere 3 (fun n => even n))
   = (even 3 -> even 2 -> even 1 -> forall m : nat, even m).
 Proof. reflexivity.  Qed.
-*)
 (** [] *)
 
 (* ####################################################### *)
@@ -1480,7 +1582,48 @@ Definition b_16 : beautiful 16 :=
        forall l, pal l -> l = rev l.
 *)
 
-(* FILL IN HERE *)
+Inductive pal (X : Type) : list X -> Prop :=
+  | pal_empty : pal X []
+  | pal_one   : forall (x : X), pal X [x]
+  | pal_rec   : forall (x : X) (xs : list X), pal X xs -> pal X (x :: xs ++ [x]).
+
+Theorem app_assoc : forall X (l1 l2 l3 : list X), (l1 ++ l2) ++ l3 = l1 ++ (l2 ++ l3).
+Proof.
+  intros X l1 l2 l3. induction l1 as [|x xs].
+    Case "l1 = []". reflexivity.
+    Case "l1 = x :: xs". simpl. rewrite -> IHxs. reflexivity.
+Qed.
+
+Theorem l_app_rev_l_is_pal : forall X (l : list X), pal X (l ++ rev l).
+Proof.
+  intros X l. induction l as [| x' xs'].
+  Case "l = []". simpl. apply pal_empty.
+  Case "l = x :: xs".
+    simpl. rewrite -> snoc_append. rewrite <- app_assoc. apply pal_rec with (x := x') (xs := xs' ++ rev xs'). apply IHxs'.
+Qed.
+
+(* generalized from chapter 2 *)
+Theorem app_nil_end : forall X (l : list X), l ++ [] = l.
+Proof.
+  intros X l. induction l as [| x xs].
+    Case "l = []". reflexivity.
+    Case "l = x :: xs". simpl. rewrite -> IHxs. reflexivity.
+Qed.
+Theorem distr_rev : forall X (l1 l2 : list X), rev (l1 ++ l2) = rev l2 ++ rev l1.
+Proof.
+  intros X l1 l2. induction l1 as [| x xs].
+    Case "l1 = []". simpl. rewrite -> app_nil_end. reflexivity.
+    Case "l1 = x :: xs". simpl. rewrite -> IHxs. rewrite -> snoc_append. rewrite -> snoc_append. rewrite -> app_assoc. reflexivity.
+Qed.
+
+Theorem pal_l_implies_l_eq_rev_l : forall X (l : list X), pal X l -> l = rev l.
+Proof.
+  intros X l h. induction h as [| x | x xs h'].
+    Case "h = pal_empty". reflexivity.
+    Case "h = pal_one x". reflexivity.
+    Case "h = pal_rec x xs h'".
+      simpl. rewrite -> snoc_append. rewrite -> distr_rev. simpl. rewrite <- IHh'. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 5 stars, optional (palindrome_converse) *)
@@ -1489,7 +1632,48 @@ Definition b_16 : beautiful 16 :=
      forall l, l = rev l -> pal l.
 *)
 
-(* FILL IN HERE *)
+Theorem rev_eq_implies_eq : forall X (l1 l2 : list X), rev l1 = rev l2 -> l1 = l2.
+Proof.
+  intros X l1 l2 h. rewrite <- rev_involutive. rewrite <- h. rewrite -> rev_involutive. reflexivity.
+Qed.
+
+Theorem app_eq_l : forall X (l1 l2 l3 : list X), l1 ++ l2 = l1 ++ l3 -> l2 = l3.
+Proof.
+  intros X l1 l2 l3. induction l1 as [| x xs].
+    intros h. apply h.
+    intros h. inversion h. apply IHxs. apply H0.
+Qed.
+
+Theorem app_eq_r : forall X (l1 l2 l3 : list X), l1 ++ l3 = l2 ++ l3 -> l1 = l2.
+Proof.
+  intros X l1 l2 l3. replace (l1 ++ l3) with (rev (rev (l1 ++ l3))). replace (l2 ++ l3) with (rev (rev (l2 ++ l3))). intros h. apply rev_eq_implies_eq in h. rewrite -> distr_rev in h. rewrite -> distr_rev in h. apply app_eq_l in h. apply rev_eq_implies_eq. apply h. rewrite rev_involutive. reflexivity. rewrite rev_involutive. reflexivity.
+Qed.
+
+Theorem len_rev : forall X (l : list X), length l = length (rev l).
+Proof.
+  intros X l. induction l as [| x xs].
+    reflexivity.
+    simpl. symmetry. symmetry in IHxs. apply (length_snoc' X x (rev xs) (length xs) IHxs).
+Qed.
+
+(* I introduced the list's length as an argument to convince Coq that the following proof terminates. I know the proof is hardly readable, but at least it's correct! *)
+Fixpoint palindrome_converse X (l : list X) (n : nat) (len : n = length l) (h : l = rev l) : pal X l.
+Proof.
+  destruct l as [| x xs].
+    apply pal_empty.
+    destruct xs as [| x' xs'].
+      apply pal_one.
+      simpl in h. rewrite -> snoc_append in h. rewrite -> snoc_append in h.
+      replace xs' with (rev (rev xs')) in h.
+        remember (rev xs') as r. destruct r as [| y ys].
+          simpl in h. replace xs' with (rev (rev xs')). rewrite <- Heqr. simpl. replace [x, x'] with (x :: [] ++ [x']). inversion h. apply pal_rec. apply pal_empty. reflexivity. apply rev_involutive.
+          rewrite -> rev_involutive in h. simpl in h. rewrite snoc_append in h. replace xs' with (rev (rev xs')). rewrite <- Heqr. simpl. rewrite snoc_append. inversion h. replace (y :: x' :: rev ys ++ [y]) with (y :: (x' :: rev ys) ++ [y]). apply pal_rec. replace (x' :: rev ys ++ [y]) with ((x' :: rev ys) ++ [y]) in H1. apply app_eq_r in H1. destruct n as [| n']. inversion len. destruct n' as [| n'']. inversion len. simpl in len. inversion len. apply palindrome_converse with (n := n'') (l := x' :: rev ys). rewrite -> H2. rewrite len_rev. rewrite <- Heqr. simpl. rewrite len_rev. reflexivity. simpl. rewrite -> snoc_append. rewrite rev_involutive. apply H1. reflexivity. reflexivity. apply rev_involutive. apply rev_involutive.
+Qed.
+
+Theorem palindrome_converse' : forall X (l : list X), l = rev l -> pal X l.
+Proof.
+  intros X l h. apply palindrome_converse with (n := length l). reflexivity. apply h.
+Qed.
 (** [] *)
 
 (** **** Exercise: 4 stars (subsequence) *)
@@ -1524,7 +1708,68 @@ Definition b_16 : beautiful 16 :=
       induction carefully!
 *)
 
-(* FILL IN HERE *)
+Inductive subseq (X : Type) : list X -> list X -> Prop :=
+  | nil_subseq  : forall (l : list X), subseq X [] l
+  | drop_subseq : forall l1 l2 x, subseq X l1 l2 -> subseq X l1 (x :: l2)
+  | keep_subseq : forall l1 l2 x, subseq X l1 l2 -> subseq X (x :: l1) (x :: l2).
+
+Theorem subseq_refl : forall X (l : list X), subseq X l l.
+Proof.
+  intros X l. induction l as [| x xs].
+    apply nil_subseq.
+    apply keep_subseq. apply IHxs.
+Qed.
+
+Theorem subseq_app : forall X (l1 l2 l3 : list X), subseq X l1 l2 -> subseq X l1 (l2 ++ l3).
+Proof.
+  intros X l1 l2 l3 h. induction h as [| h' | h'].
+    apply nil_subseq.
+    apply drop_subseq. apply IHh.
+    apply keep_subseq. apply IHh.
+Qed.
+
+Check subseq_ind.
+
+Theorem subseq_drop_first : forall (X : Type) (x : X) (l1 l2 : list X), subseq X (x :: l1) l2 -> subseq X l1 l2.
+Proof.
+  intros X x l1 l2. induction l2 as [| y ys].
+    intros i. inversion i.
+    intros i. inversion i as [| i' | i'].
+      apply drop_subseq. apply IHys. apply H1.
+      apply drop_subseq. apply H0.
+Qed.
+
+Theorem subseq_drop_both : forall (X : Type) (x y : X) (xs ys : list X), subseq X (x :: xs) (y :: ys) -> subseq X xs ys.
+Proof.
+  intros X x y xs ys h. inversion h as [| h' | h'].
+    apply subseq_drop_first with (x := x). apply H1.
+    apply H0.
+Qed.
+
+Theorem subseq_trans : forall (X : Type) (l1 l2 l3 : list X), subseq X l1 l2 -> subseq X l2 l3 -> subseq X l1 l3.
+Proof.
+  intros X l1 l2 l3. generalize dependent l2. generalize dependent l1. induction l3 as [| x xs].
+    intros l1 l2 h i. inversion i. rewrite <- H in h. inversion h. apply nil_subseq.
+    intros l1 l2 h i. inversion i.
+      rewrite <- H in h. inversion h. apply nil_subseq.
+      destruct h as [| h' | h'].
+        apply nil_subseq.
+        apply drop_subseq. apply IHxs with (l2 := x1 :: l2).
+          apply drop_subseq. apply h.
+          apply H1.
+        apply drop_subseq. apply IHxs with (l2 := x1 :: l2).
+          apply keep_subseq. apply h.
+          apply H1.
+      destruct h as [| h' | h'].
+        apply nil_subseq.
+        apply drop_subseq. apply IHxs with (l2 := l2).
+          apply h.
+          apply subseq_drop_both with (x := x1) (y := x). apply i.
+        inversion H0. rewrite <- H4. rewrite -> H. apply keep_subseq. apply IHxs with (l2 := l2).
+          apply h.
+          apply subseq_drop_both with (x := x1) (y := x). apply i.
+Qed.
+  
 (** [] *)
 
 (** **** Exercise: 2 stars, optional (foo_ind_principle) *)
