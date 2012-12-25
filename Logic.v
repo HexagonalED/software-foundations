@@ -139,7 +139,8 @@ Proof.
 Theorem proj2 : forall P Q : Prop, 
   P /\ Q -> Q.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P Q H. inversion H as [HP HQ]. apply HQ.
+Qed.
 (** [] *)
 
 Theorem and_commut : forall P Q : Prop, 
@@ -178,7 +179,12 @@ Theorem and_assoc : forall P Q R : Prop,
 Proof.
   intros P Q R H.
   inversion H as [HP [HQ HR]].
-(* FILL IN HERE *) Admitted.
+  split.
+    split.
+      apply HP.
+      apply HQ.
+    apply HR.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, recommended (even__ev) *)
@@ -194,15 +200,23 @@ Proof.
 Theorem even__ev : forall n : nat,
   (even n -> ev n) /\ (even (S n) -> ev (S n)).
 Proof.
-  (* Hint: Use induction on [n]. *)
-  (* FILL IN HERE *) Admitted.
+  intros n. induction n as [| n'].
+    split.
+      intros h. apply ev_0.
+      intros contra. inversion contra.
+    inversion IHn'. split.
+      apply H0.
+      unfold even. simpl. intros h. apply ev_SS. apply H. apply h.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, optional (conj_fact) *)
 (** Construct a proof object demonstrating the following proposition. *)
 
 Definition conj_fact : forall P Q R, P /\ Q -> Q /\ R -> P /\ R :=
-  (* FILL IN HERE *) admit.
+  fun P _ R pq qr => match pq, qr with
+    | conj p _, conj _ r => conj P R p r
+  end.
 (** [] *)
 
 (* ###################################################### *)
@@ -238,14 +252,20 @@ Proof.
 
 Theorem iff_refl : forall P : Prop, 
   P <-> P.
-Proof. 
-  (* FILL IN HERE *) Admitted.
+Proof.
+  intros P. split.
+    intros p. apply p.
+    intros p. apply p.
+Qed.
 
 Theorem iff_trans : forall P Q R : Prop, 
   (P <-> Q) -> (Q <-> R) -> (P <-> R).
 Proof.
-  (* FILL IN HERE *) Admitted.
-
+  intros P Q R PQ QR. inversion PQ as [pq qp]. inversion QR as [qr rq].
+  split.
+    intros p. apply qr. apply pq. apply p.
+    intros r. apply qp. apply rq. apply r.
+Qed.
 (** Hint: If you have an iff hypothesis in the context, you can use
     [inversion] to break it into two separate implications.  (Think
     about why this works.) *)
@@ -262,7 +282,7 @@ Proof.
 
 Definition beautiful_iff_gorgeous :
   forall n, beautiful n <-> gorgeous n :=
-  (* FILL IN HERE *) admit.
+  fun n => conj (beautiful n -> gorgeous n) (gorgeous n -> beautiful n) (beautiful__gorgeous n) (gorgeous__beautiful n).
 (** [] *)
 
 (** Some of Coq's tactics treat [iff] statements specially, thus
@@ -332,7 +352,11 @@ Proof.
 (** Try to write down an explicit proof object for [or_commut] (without
     using [Print] to peek at the ones we already defined!). *)
 
-(* FILL IN HERE *)
+Definition or_commut'' (P Q : Prop) (p_or_q : P \/ Q) : Q \/ P :=
+  match p_or_q with
+    | or_introl e => or_intror Q P e
+    | or_intror e => or_introl Q P e
+  end.
 (** [] *)
 
 Theorem or_distributes_over_and_1 : forall P Q R : Prop,
@@ -350,14 +374,22 @@ Proof.
 Theorem or_distributes_over_and_2 : forall P Q R : Prop,
   (P \/ Q) /\ (P \/ R) -> P \/ (Q /\ R).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P Q R. intros and. inversion and as [p_or_q p_or_r]. inversion p_or_q as [p | q].
+    left. apply p.
+    inversion p_or_r as [p | r].
+      left. apply p.
+      right. split.
+        apply q.
+        apply r.
+Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, optional (or_distributes_over_and) *)
 Theorem or_distributes_over_and : forall P Q R : Prop,
   P \/ (Q /\ R) <-> (P \/ Q) /\ (P \/ R).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P Q R. split. apply or_distributes_over_and_1. apply or_distributes_over_and_2.
+Qed.
 (** [] *)
 
 (* ################################################### *)
@@ -395,17 +427,32 @@ Proof.
 Theorem andb_false : forall b c,
   andb b c = false -> b = false \/ c = false.
 Proof. 
-  (* FILL IN HERE *) Admitted.
+  intros b c h. destruct b.
+    destruct c.
+      inversion h.
+      right. reflexivity.
+    left. reflexivity.
+Qed.
 
 Theorem orb_true : forall b c,
   orb b c = true -> b = true \/ c = true.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros b c h. destruct b.
+    left. reflexivity.
+    destruct c.
+      right. reflexivity.
+      inversion h.
+Qed.
 
 Theorem orb_false : forall b c,
   orb b c = false -> b = false /\ c = false.
 Proof. 
-  (* FILL IN HERE *) Admitted.
+  intros b c h. destruct b.
+    inversion h.
+    destruct c.
+      inversion h.
+      split. reflexivity. reflexivity.
+Qed.
 (** [] *)
 
 (* ################################################### *)
@@ -422,7 +469,7 @@ Inductive False : Prop := .
 (** **** Exercise: 1 star (False_ind_principle) *)
 (** Can you predict the induction principle for falsehood? *)
 
-(* Check False_ind. *)
+Check False_ind.
 (** [] *)
 
 (** Since [False] has no constructors, inverting an assumption
@@ -479,7 +526,8 @@ Proof.
     to start with the induction principle and work backwards to the
     inductive definition.) *)
 
-(* FILL IN HERE *)
+Inductive Truth := | T.
+Check Truth_ind.
 (** [] *)
 
 (** However, unlike [False], which we'll use extensively, [True] is
@@ -542,14 +590,16 @@ Proof.
 Theorem contrapositive : forall P Q : Prop,
   (P -> Q) -> (~Q -> ~P).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros P Q h i. unfold not. intros j. unfold not in i. apply i. apply h. apply j.
+Qed.
 (** [] *)
 
 (** **** Exercise: 1 star (not_both_true_and_false) *)
 Theorem not_both_true_and_false : forall P : Prop,
   ~ (P /\ ~P).
 Proof. 
-  (* FILL IN HERE *) Admitted.
+  intros P h. inversion h as [p np]. apply np. apply p.
+Qed.
 (** [] *)
 
 (** **** Exercise: 1 star (informal_not_PNP) *)
@@ -574,7 +624,9 @@ Theorem ev_not_ev_S : forall n,
   ev n -> ~ ev (S n).
 Proof. 
   unfold not. intros n H. induction H. (* not n! *)
-  (* FILL IN HERE *) Admitted.
+    intros contra. inversion contra.
+    intros h. inversion h. apply IHev. apply H1.
+Qed.
 (** [] *)
 
 (** Note that some theorems that are true in classical logic are _not_
@@ -610,7 +662,13 @@ Definition de_morgan_not_and_not := forall P Q:Prop,
 Definition implies_to_or := forall P Q:Prop, 
   (P->Q) -> (~P\/Q). 
 
-(* FILL IN HERE *)
+Theorem peirce_implies_classic : peirce -> classic.
+Proof.
+  unfold peirce. unfold classic.
+  intros p P nnP. unfold not in nnP. apply p with (Q := False). intros h. apply nnP in h. inversion h.
+Qed.
+
+(* stuck here *)
 (** [] *)
 
 (* ########################################################## *)
@@ -644,14 +702,28 @@ Theorem not_eq_beq_false : forall n n' : nat,
      n <> n' ->
      beq_nat n n' = false.
 Proof. 
-  (* FILL IN HERE *) Admitted.
+  intros n. induction n as [| n'].
+    intros m. destruct m.
+      unfold not. intros h. apply ex_falso_quodlibet. apply h. reflexivity.
+      intros h. reflexivity.
+    intros m. destruct m.
+      intros h. reflexivity.
+      intros h. simpl. apply IHn'. unfold not. unfold not in h. intros i. apply h. rewrite -> i. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, optional (beq_false_not_eq) *)
 Theorem beq_false_not_eq : forall n m,
   false = beq_nat n m -> n <> m.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n. induction n as [| n'].
+    intros m. destruct m.
+      intros h. inversion h.
+      intros h. unfold not. intros i. inversion i.
+    intros m. destruct m.
+      intros h. unfold not. intros i. inversion i.
+      intros h. simpl in h. apply IHn' in h. unfold not in h. unfold not. intros i. apply h. inversion i. reflexivity.
+Qed.
 (** [] *)
 
 (* ############################################################ *)
@@ -744,12 +816,12 @@ Proof.
 ]] 
     mean? *)
 
-(* FILL IN HERE *)
+(* there exists a natural number n such that its successor S n is beautiful. *)
 
 (** Complete the definition of the following proof object: *)
 
 Definition p : ex nat (fun n => beautiful (S n)) :=
-(* FILL IN HERE *) admit.
+  ex_intro _ _ 2 b_3.
 (** [] *)
 
 (** **** Exercise: 1 star (dist_not_exists) *)
@@ -758,8 +830,9 @@ Definition p : ex nat (fun n => beautiful (S n)) :=
 
 Theorem dist_not_exists : forall (X:Type) (P : X -> Prop),
   (forall x, P x) -> ~ (exists x, ~ P x).
-Proof. 
-  (* FILL IN HERE *) Admitted.
+Proof.
+  intros X P h i. unfold not in i. inversion i. apply H. apply h.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, optional (not_exists_dist) *)
@@ -771,7 +844,10 @@ Theorem not_exists_dist :
   forall (X:Type) (P : X -> Prop),
     ~ (exists x, ~ P x) -> (forall x, P x).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros em X P h x. unfold not in h. unfold excluded_middle in em. destruct (em (P x)).
+    apply H.
+    apply ex_falso_quodlibet. apply h. exists x. apply H.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars (dist_exists_or) *)
@@ -781,10 +857,17 @@ Proof.
 Theorem dist_exists_or : forall (X:Type) (P Q : X -> Prop),
   (exists x, P x \/ Q x) <-> (exists x, P x) \/ (exists x, Q x).
 Proof.
-   (* FILL IN HERE *) Admitted.
+  intros X P Q. split.
+    intros h. inversion h as [x]. inversion H as [px | qx].
+      left.  exists x. apply px.
+      right. exists x. apply qx.
+    intros h. inversion h as [ep | eq].
+      inversion ep as [x]. exists x. left.  apply H.
+      inversion eq as [x]. exists x. right. apply H.
+Qed.
 (** [] *)
 
-(* Print dist_exists_or. *)
+Print dist_exists_or.
 
 
 
@@ -828,7 +911,10 @@ Notation "x =' y" := (eq' _ x y)
 Theorem two_defs_of_eq_coincide : forall (X:Type) (x y : X),
   x = y <-> x =' y.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros X x y. split.
+    intros h. destruct h. apply refl_equal'.
+    intros h. destruct h. apply refl_equal.
+Qed.
 (** [] *)
 
 (** The advantage of the second definition is that the induction
@@ -1040,14 +1126,15 @@ Inductive next_even (n:nat) : nat -> Prop :=
 (** Define an inductive binary relation [total_relation] that holds
     between every pair of natural numbers. *)
 
-(* FILL IN HERE *)
+Inductive always_holds : nat -> nat -> Prop :=
+  | ah : forall a b, always_holds a b.
 (** [] *)
 
 (** **** Exercise: 2 stars (empty_relation) *)
 (** Define an inductive binary relation [empty_relation] (on numbers)
     that never holds. *)
 
-(* FILL IN HERE *)
+Inductive never_holds : nat -> nat -> Prop := .
 (** [] *)
 
 (** **** Exercise: 3 stars, recommended (R_provability) *)
@@ -1075,7 +1162,9 @@ Inductive R : nat -> nat -> nat -> Prop :=
       would the set of provable propositions change?  Briefly (1
       sentence) explain your answer.
 
-(* FILL IN HERE *)
+- only the first is provable (the set defines the relation a + b = c and 2 + 2 is not 6).
+- the set would not change, since using [c1] instead of [c2] in a proof of [R n m o] (without using c5) yields a proof of [R m n o].
+- the set would not change, since a proof of [R (S m) (S n) (S (S o))] can only be constructed by using the c2 and c3 constructors. Simply leaving two of them out gives a proof of [R m n o]. 
 []
 *)
 
@@ -1085,7 +1174,31 @@ Inductive R : nat -> nat -> nat -> Prop :=
     [n], and [o], and vice versa?
 *)
 
-(* FILL IN HERE *)
+Definition plus_eq (a b c : nat) : Prop := a + b = c.
+
+Theorem R1 : forall n, R 0 n n.
+Proof.
+  induction n as [| n'].
+    apply c1.
+    apply c3. apply IHn'.
+Qed.
+
+Theorem equiv_R_plus_eq : forall (a b c : nat), plus_eq a b c <-> R a b c.
+Proof.
+  intros a b c. split.
+    generalize dependent c. induction a as [| b'].
+      intros c h. unfold plus_eq in h. simpl in h. rewrite -> h. apply R1.
+      intros c h. unfold plus_eq in h. simpl in h. destruct c as [| c'].
+        inversion h.
+        inversion h. apply c2. apply IHb'. rewrite -> H0. apply H0.
+    intros r.
+      induction r as [| r' | r' | r' | r'].
+        reflexivity.
+        unfold plus_eq. unfold plus_eq in IHr. simpl. rewrite -> IHr. reflexivity.
+        unfold plus_eq. unfold plus_eq in IHr. rewrite <- plus_n_Sm. rewrite -> IHr. reflexivity.
+        unfold plus_eq. unfold plus_eq in IHr. rewrite <- plus_n_Sm in IHr. inversion IHr. reflexivity.
+        unfold plus_eq. unfold plus_eq in IHr. rewrite -> Basics.plus_comm. apply IHr.
+Qed.
 (** [] *)
 
 End R.
@@ -1096,8 +1209,8 @@ End R.
     asserts that [P] is true for every element of the list [l]. *)
 
 Inductive all (X : Type) (P : X -> Prop) : list X -> Prop :=
-  (* FILL IN HERE *)
-.
+  | all_empty : all X P []
+  | all_cons  : forall x xs, P x -> all X P xs -> all X P (x :: xs).
 
 (** Recall the function [forallb], from the exercise
     [forall_exists_challenge] in chapter [Poly]: *)
@@ -1115,7 +1228,18 @@ Fixpoint forallb {X : Type} (test : X -> bool) (l : list X) : bool :=
     Are there any important properties of the function [forallb] which
     are not captured by your specification? *)
 
-(* FILL IN HERE *)
+Theorem all_correct : forall X (l : list X) (test : X -> bool), forallb test l = true <-> all X (fun x => test x = true) l.
+Proof.
+  intros X l test. split.
+    induction l as [| x xs].
+      intros h. apply all_empty.
+      simpl. intros h. remember (test x) as test_x. destruct test_x.
+        simpl in h. apply all_cons. symmetry. apply Heqtest_x. apply IHxs. apply h.
+        inversion h.
+    intros a. induction a as [| px axs].
+      reflexivity.
+      simpl. rewrite -> H. rewrite -> IHa. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 4 stars, optional (filter_challenge) *)
@@ -1143,7 +1267,25 @@ Fixpoint forallb {X : Type} (test : X -> bool) (l : list X) : bool :=
     for one list to be a merge of two others.  Do this with an
     inductive relation, not a [Fixpoint].)  *)
 
-(* FILL IN HERE *)
+Inductive is_merge {X : Type} : list X -> list X -> list X -> Prop :=
+  | merge_empty  : is_merge [] [] []
+  | merge_first  : forall x xs ys zs, is_merge xs ys zs -> is_merge (x :: xs) ys (x :: zs)
+  | merge_second : forall y xs ys zs, is_merge xs ys zs -> is_merge xs (y :: ys) (y :: zs).
+
+Theorem filter_challenge : forall X (test : X -> bool) (xs ys zs : list X), is_merge xs ys zs -> forallb test xs = true -> forallb (fun a => negb (test a)) ys = true -> filter test zs = xs.
+Proof.
+  intros X test xs ys zs m axs anys. induction m as [| xs' | ys'].
+    reflexivity.
+    simpl. remember (test xs') as test_xs'. destruct test_xs'.
+      simpl in axs. rewrite <- Heqtest_xs' in axs. apply IHm in axs. rewrite -> axs. reflexivity.
+        apply anys.
+      simpl in axs. rewrite <- Heqtest_xs' in axs. inversion axs.
+    simpl. remember (test ys') as test_ys'. destruct test_ys'.
+      simpl in anys. rewrite <- Heqtest_ys' in anys. inversion anys.
+      simpl in anys. rewrite <- Heqtest_ys' in anys. apply IHm in axs.
+        apply axs.
+        apply anys.
+Qed.
 (** [] *)
 
 (** **** Exercise: 5 stars, optional (filter_challenge_2) *)
@@ -1153,6 +1295,50 @@ Fixpoint forallb {X : Type} (test : X -> bool) (l : list X) : bool :=
     l] is the longest.  Express this claim formally and prove it. *)
 
 (* FILL IN HERE *)
+Theorem filter_subseq : forall X (test : X -> bool) (l : list X), subseq X (filter test l) l.
+Proof.
+  intros X test l. induction l as [| x xs].
+    apply nil_subseq.
+    simpl. remember (test x) as test_x. destruct test_x.
+      apply keep_subseq. apply IHxs.
+      apply drop_subseq. apply IHxs.
+Qed.
+
+Theorem le_0_n : forall (n : nat), 0 <= n.
+Proof.
+  intros n. induction n as [| n'].
+    apply le_n.
+    apply le_S. apply IHn'.
+Qed.
+
+Theorem le_n_m_Sn_Sm : forall (n m : nat), n <= m -> S n <= S m.
+Proof.
+  intros n m le. induction le as [| le'].
+    apply le_n.
+    apply le_S. apply IHle.
+Qed.
+
+
+Theorem filter_challenge_2 : forall X (test : X -> bool) (s l : list X), subseq X s l -> forallb test s = true -> length s <= length (filter test l).
+Proof.
+  intros X test s l. generalize dependent s. induction l as [|x xs].
+    intros s sub i. inversion sub. apply le_n.
+    intros s sub t. remember (test x) as test_x. destruct test_x.
+      inversion sub.
+        apply le_0_n.
+        simpl. rewrite <- Heqtest_x. simpl. apply le_S. apply IHxs.
+          apply H1.
+          apply t.
+        simpl. rewrite <- Heqtest_x. simpl. apply le_n_m_Sn_Sm. apply IHxs.
+          apply H1.
+          rewrite <- H0 in t. simpl in t. rewrite -> H in t. rewrite <- Heqtest_x in t. apply t.
+      inversion sub.
+        apply le_0_n.
+        simpl. rewrite <- Heqtest_x. apply IHxs.
+          apply H1.
+          apply t.
+        rewrite <- H0 in t. simpl in t. rewrite -> H in t. rewrite <- Heqtest_x in t. inversion t.
+Qed.
 (** [] *)
 
 (** **** Exercise: 4 stars, optional (no_repeats) *)
@@ -1171,18 +1357,32 @@ Inductive appears_in {X:Type} (a:X) : list X -> Prop :=
 Lemma appears_in_app : forall {X:Type} (xs ys : list X) (x:X), 
      appears_in x (xs ++ ys) -> appears_in x xs \/ appears_in x ys.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros X xs ys v. induction xs as [| x xs'].
+    intros h. right. apply h.
+    intros h. inversion h.
+      left. apply ai_here.
+      apply IHxs' in H0. inversion H0.
+        left. apply ai_later. apply H2.
+        right. apply H2.
+Qed.
 
 Lemma app_appears_in : forall {X:Type} (xs ys : list X) (x:X), 
      appears_in x xs \/ appears_in x ys -> appears_in x (xs ++ ys).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros X xs ys x a. inversion a.
+    induction H as [| H'].
+      apply ai_here.
+      simpl. apply ai_later. apply IHappears_in. left. apply H.
+    induction xs as [| x' xs'].
+      apply H.
+      simpl. apply ai_later. apply IHxs'. right. apply H.
+Qed.
 
 (** Now use [appears_in] to define a proposition [disjoint X l1 l2],
     which should be provable exactly when [l1] and [l2] are
     lists (with elements of type X) that have no elements in common. *)
 
-(* FILL IN HERE *)
+Definition disjoint {X : Type} (l1 l2 : list X) : Prop := forall x, ~ (appears_in x l1 /\ appears_in x l2).
 
 (** Next, use [appears_in] to define an inductive proposition
     [no_repeats X l], which should be provable exactly when [l] is a
@@ -1191,12 +1391,41 @@ Proof.
     [no_repeats bool []] should be provable, while [no_repeats nat
     [1,2,1]] and [no_repeats bool [true,true]] should not be.  *)
 
-(* FILL IN HERE *)
+Inductive no_repeats {X : Type} : list X -> Prop :=
+  | no_repeats_empty : no_repeats []
+  | no_repeats_cons  : forall (x : X) (xs : list X), ~ (appears_in x xs) -> no_repeats xs -> no_repeats (x :: xs).
 
 (** Finally, state and prove one or more interesting theorems relating
     [disjoint], [no_repeats] and [++] (list append).  *)
 
-(* FILL IN HERE *)
+Theorem no_repeats_1 : forall {X : Type} (l1 l2 : list X), no_repeats (l1 ++ l2) -> no_repeats l1 /\ no_repeats l2.
+Proof.
+  intros X l1 l2. induction l1 as [| x xs].
+    intros nr. apply conj.
+      apply no_repeats_empty.
+      apply nr.
+    intros nr. inversion nr. apply IHxs in H2. destruct H2 as [nrxs nrl2]. apply conj.
+      apply no_repeats_cons.
+        intros contra. apply H1. apply app_appears_in. left. apply contra.
+        apply nrxs.
+      apply nrl2.
+Qed.
+
+Theorem no_repeats_2 : forall {X : Type} (x : X) (l1 l2 : list X), appears_in x l1 -> appears_in x l2 -> ~ (no_repeats (l1 ++ l2)).
+Proof.
+  intros X x l1 l2 ail1. induction ail1 as [| ail1'].
+    intros ail2 contra. inversion contra. apply H1. apply app_appears_in. right. apply ail2.
+    intros ail2 contra. inversion contra. apply IHail1. apply ail2. apply H2.
+Qed.
+
+Theorem no_repeats_3 : forall {X : Type} (l1 l2 : list X), no_repeats (l1 ++ l2) -> disjoint l1 l2.
+Proof.
+  intros X l1 l2 nr. unfold disjoint. intros x' contra. destruct contra as [ail1 ail2]. apply not_both_true_and_false with (P := no_repeats (l1 ++ l2)). apply conj.
+    apply nr.
+    apply no_repeats_2 with (x := x').
+      apply ail1.
+      apply ail2.
+Qed.
 (** [] *)
 
 (* ######################################################### *)
@@ -1207,55 +1436,109 @@ Proof.
     course.  The proofs make good practice exercises. *)
 
 (** **** Exercise: 2 stars, optional (le_exercises) *)
+(* my own idea *)
+Theorem le_trans : forall (n m k : nat), n <= m -> m <= k -> n <= k.
+Proof.
+  intros n m k le_nm le_mk. induction le_mk as [| k'].
+    apply le_nm.
+    apply le_S. apply IHle_mk.
+Qed.
+
 Theorem O_le_n : forall n,
   0 <= n.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  (* proved above *)
+  apply le_0_n.
+Qed.
 
 Theorem n_le_m__Sn_le_Sm : forall n m,
   n <= m -> S n <= S m.
-Proof. 
-  (* FILL IN HERE *) Admitted.
+Proof.
+  (* proved above *)
+  apply le_n_m_Sn_Sm.
+Qed.
 
 Theorem Sn_le_Sm__n_le_m : forall n m,
   S n <= S m -> n <= m.
 Proof. 
-  intros n m.  generalize dependent n.  induction m. 
-  (* FILL IN HERE *) Admitted. 
+  intros n m.  generalize dependent n.  induction m.
+    intros n. destruct n as [| n'].
+      intros h. apply le_n.
+      intros contra. inversion contra. inversion H0.
+    intros n lte. inversion lte.
+      apply le_n.
+      apply le_S. apply IHm. apply H0.
+Qed.
 
 Theorem le_plus_l : forall a b,
   a <= a + b.
-Proof. 
-  (* FILL IN HERE *) Admitted.
+Proof.
+  intros a b. induction b as [| b'].
+    rewrite -> plus_0_r. apply le_n.
+    rewrite <- plus_n_Sm. apply le_S. apply IHb'.
+Qed.
 
 Theorem plus_lt : forall n1 n2 m,
   n1 + n2 < m ->
   n1 < m /\ n2 < m.
-Proof. 
- (* FILL IN HERE *) Admitted.
+Proof.
+  intros n1 n2 m. generalize dependent n1. generalize dependent n2. induction m as [| m'].
+    intros n1 n2 lte. inversion lte.
+    intros n1 n2 lte. destruct n1 as [| n1'].
+      destruct n2 as [| n2'].
+        apply conj.
+          apply n_le_m__Sn_le_Sm. apply O_le_n.
+          apply n_le_m__Sn_le_Sm. apply O_le_n.
+        apply conj.
+          rewrite -> plus_0_r in lte. apply lte.
+          apply n_le_m__Sn_le_Sm. apply O_le_n.
+      rewrite <- plus_n_Sm in lte. apply Sn_le_Sm__n_le_m in lte. apply IHm' in lte. destruct lte. apply conj.
+        apply le_S. apply H.
+        apply n_le_m__Sn_le_Sm. apply H0.
+Qed.
 
 Theorem lt_S : forall n m,
   n < m ->
   n < S m.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n m lte. induction lte as [| lte'].
+    apply le_S. apply le_n.
+    apply le_S. apply IHlte.
+Qed.
 
 Theorem ble_nat_true : forall n m,
   ble_nat n m = true -> n <= m.
-Proof. 
-  (* FILL IN HERE *) Admitted.
+Proof.
+  intros n. induction n as [| n'].
+    intros m h. apply O_le_n.
+    intros m. destruct m as [| m'].
+      intros contra. inversion contra.
+      intros h. simpl in h. apply n_le_m__Sn_le_Sm. apply IHn'. apply h.
+Qed.
 
 Theorem ble_nat_n_Sn_false : forall n m,
   ble_nat n (S m) = false ->
   ble_nat n m = false.
-Proof. 
-  (* FILL IN HERE *) Admitted.
+Proof.
+  intros n m h. generalize dependent n. induction m as [| m'].
+    intros n h. destruct n as [| n'].
+      inversion h.
+      reflexivity.
+    intros n h. destruct n as [| n'].
+      inversion h.
+      simpl. apply IHm'. apply h.
+Qed.
 
 Theorem ble_nat_false : forall n m,
   ble_nat n m = false -> ~(n <= m).
 Proof.
   (* Hint: Do the right induction! *)
-  (* FILL IN HERE *) Admitted.
+  intros n m. generalize dependent n. induction m as [| m'].
+    intros n h lte. inversion lte. rewrite -> H in h. inversion h.
+    intros n h lte. destruct n as [| n'].
+      inversion h.
+      apply IHm' in h. apply h. apply Sn_le_Sm__n_le_m. apply lte.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, recommended (nostutter) *)
@@ -1272,8 +1555,9 @@ Proof.
     does not stutter.) *)
 
 Inductive nostutter:  list nat -> Prop :=
- (* FILL IN HERE *)
-.
+  | nostutter_nil   : nostutter []
+  | nostutter_first : forall n, nostutter [n]
+  | nostutter_cons  : forall n m l, beq_nat n m = false -> nostutter (m :: l) -> nostutter (n :: m :: l).
 
 (** Make sure each of these tests succeeds, but you are free
     to change the proof if the given one doesn't work for you.
@@ -1288,32 +1572,20 @@ Inductive nostutter:  list nat -> Prop :=
     tactics.  *)
 
 Example test_nostutter_1:      nostutter [3,1,4,1,5,6].
-(* FILL IN HERE *) Admitted.
-(* 
-  Proof. repeat constructor; apply beq_false_not_eq; auto. Qed.
-*)
+Proof. repeat constructor; apply nostutter_cons; auto. Qed.
 
 Example test_nostutter_2:  nostutter [].
-(* FILL IN HERE *) Admitted.
-(* 
-  Proof. repeat constructor; apply beq_false_not_eq; auto. Qed.
-*)
+Proof. apply nostutter_nil. Qed.
 
 Example test_nostutter_3:  nostutter [5].
-(* FILL IN HERE *) Admitted.
-(* 
-  Proof. repeat constructor; apply beq_false_not_eq; auto. Qed.
-*)
+Proof. apply nostutter_first. Qed.
 
 Example test_nostutter_4:      not (nostutter [3,1,1,4]).
-(* FILL IN HERE *) Admitted.
-(* 
-  Proof. intro.
+Proof. intro.
   repeat match goal with 
     h: nostutter _ |- _ => inversion h; clear h; subst 
   end.
-  contradiction H1; auto. Qed.
-*)
+  inversion H1. Qed.
 (** [] *)
 
 (** **** Exercise: 4 stars, optional (pigeonhole principle) *)
@@ -1329,21 +1601,27 @@ Example test_nostutter_4:      not (nostutter [3,1,1,4]).
 Lemma app_length : forall {X:Type} (l1 l2 : list X),
   length (l1 ++ l2) = length l1 + length l2. 
 Proof. 
-  (* FILL IN HERE *) Admitted.
+  intros X l1 l2. induction l1 as [| x xs].
+    reflexivity.
+    simpl. rewrite -> IHxs. reflexivity.
+Qed.
 
 Lemma appears_in_app_split : forall {X:Type} (x:X) (l:list X),
   appears_in x l -> 
   exists l1, exists l2, l = l1 ++ (x::l2).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros X x l ai. induction ai as [| ai'].
+    exists []. exists l. reflexivity.
+    inversion IHai. exists (ai' :: witness). inversion H. exists witness0. rewrite -> H0. reflexivity.
+Qed.
 
 (** Now define a predicate [repeats] (analogous to [no_repeats] in the
    exercise above), such that [repeats X l] asserts that [l] contains
    at least one repeated element (of type [X]).  *)
 
 Inductive repeats {X:Type} : list X -> Prop :=
-  (* FILL IN HERE *)
-.
+  | repeated_here  : forall (x : X) (l : list X), appears_in x l -> repeats (x :: l)
+  | repeated_later : forall (x : X) (l : list X), repeats l -> repeats (x :: l).
 
 (** Now here's a way to formalize the pigeonhole principle. List [l2]
    represents a list of pigeonhole labels, and list [l1] represents an
@@ -1357,7 +1635,18 @@ Theorem pigeonhole_principle: forall {X:Type} (l1 l2:list X),
   length l2 < length l1 -> 
   repeats l1.  
 Proof.  intros X l1. induction l1.
-  (* FILL IN HERE *) Admitted.
+  intros l2 em h lt. inversion lt.
+  intros l2 em h lt. remember (em (appears_in x l1)) as em_ai. destruct em_ai as [appears | appears_not].
+    apply repeated_here. apply appears.
+    apply repeated_later. destruct (appears_in_app_split x l2 (h x (ai_here x l1))) as [w1 [w2]]. apply IHl1 with (l2 := w1 ++ w2).
+      apply em.
+      intros y ai. assert (ai' := ai). (* duplicate ai *) apply ai_later with (b := x) in ai. apply h in ai. rewrite -> H in ai. apply appears_in_app in ai. destruct ai as [inw1 | inxw2].
+        apply app_appears_in. left. apply inw1.
+        apply app_appears_in. right. inversion inxw2.
+          rewrite -> H1 in ai'. apply contradiction_implies_anything with (P := appears_in x l1). split. apply ai'. apply appears_not.
+          apply H1.
+        rewrite -> H in lt. rewrite -> app_length in lt. simpl in lt. rewrite <- plus_n_Sm in lt. apply Sn_le_Sm__n_le_m in lt. rewrite <- app_length in lt. apply lt.
+Qed.
 (** [] *)
 
 (* ####################################################### *)
@@ -1532,13 +1821,13 @@ Proof.  intros X l1. induction l1.
 (** **** Exercise: 1 star, optional (and_ind_principle) *)
 (** See if you can predict the induction principle for conjunction. *)
 
-(* Check and_ind. *)
+Check and_ind.
 (** [] *)
 
 (** **** Exercise: 1 star, optional (or_ind_principle) *)
 (** See if you can predict the induction principle for disjunction. *)
 
-(* Check or_ind. *)
+Check or_ind.
 (** [] *)
 
 Check and_ind.
