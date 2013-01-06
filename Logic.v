@@ -668,7 +668,63 @@ Proof.
   intros p P nnP. unfold not in nnP. apply p with (Q := False). intros h. apply nnP in h. inversion h.
 Qed.
 
-(* stuck here *)
+Theorem classic_implies_peirce : classic -> peirce.
+Proof.
+  unfold peirce. unfold classic.
+  intros c P Q h. apply c. intros h'. apply h'. apply h. intros p. apply ex_falso_quodlibet. apply h'. apply p.
+Qed.
+
+Theorem not_a_or_b_implies_not_a_and_not_b : forall A B, ~ (A \/ B) -> (~ A) /\ (~ B).
+Proof.
+  intros A B h. split.
+    intros a. apply h. left. apply a.
+    intros b. apply h. right. apply b.
+Qed.
+
+Theorem classic_implies_excluded_middle : classic -> excluded_middle.
+Proof.
+  unfold classic. unfold excluded_middle.
+  intros c P. apply c. intros h. apply not_a_or_b_implies_not_a_and_not_b in h. destruct h. apply H0. apply H.
+Qed.
+
+Theorem excluded_middle_implies_classic : excluded_middle -> classic.
+Proof.
+  unfold classic. unfold excluded_middle. intros h P nnP. destruct (h P).
+    apply H.
+    apply nnP in H. inversion H.
+Qed.
+
+Theorem classic_implies_de_morgan_not_and_not : classic -> de_morgan_not_and_not.
+Proof.
+  unfold classic. unfold de_morgan_not_and_not. intros c P Q h. apply c. intros i. apply h.apply not_a_or_b_implies_not_a_and_not_b. apply i.
+Qed.
+
+Theorem de_morgan_not_and_not_implies_excluded_middle : de_morgan_not_and_not -> excluded_middle.
+Proof.
+  unfold de_morgan_not_and_not. unfold excluded_middle.
+  intros dmnan P. apply dmnan. intros notp_and_notnotp. destruct notp_and_notnotp. apply H0. apply H.
+Qed.
+
+(*Theorem de_morgan_not_and_not_implies_classic : de_morgan_not_and_not -> classic.
+Proof.
+  intros dmnan. apply excluded_middle_implies_classic. apply de_morgan_not_and_not_implies_excluded_middle. apply dmnan.
+Qed.*)
+
+Theorem excluded_middle_implies_implies_to_or : excluded_middle -> implies_to_or.
+Proof.
+  unfold excluded_middle. unfold implies_to_or.
+  intros em P Q h. destruct (em P).
+    right. apply h. apply H.
+    left. apply H.
+Qed.
+
+Theorem implies_to_or_implies_excluded_middle : implies_to_or -> excluded_middle.
+Proof.
+  unfold implies_to_or. unfold excluded_middle.
+  intros ito P. destruct (ito P P (fun x => x)). 
+    right. apply H.
+    left. apply H.
+Qed.
 (** [] *)
 
 (* ########################################################## *)
