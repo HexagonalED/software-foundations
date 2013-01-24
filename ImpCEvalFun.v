@@ -181,15 +181,16 @@ Definition test_ceval (st:state) (c:com) :=
    [X] (inclusive: [1 + 2 + ... + X]) in the variable [Y].  Make sure
    your solution satisfies the test that follows. *)
 
-Definition pup_to_n : com := 
-  (* FILL IN HERE *) admit.
+Definition pup_to_n : com :=
+  WHILE (BNot (BEq (AId X) (ANum 0))) DO
+    Y ::= APlus (AId Y) (AId X);
+    X ::= AMinus (AId X) (ANum 1)
+  END.
 
-(* 
 Example pup_to_n_1 : 
   test_ceval (update empty_state X 5) pup_to_n
   = Some (0, 15, 0).
 Proof. reflexivity. Qed.
-*)
 (** [] *)
 
 (** **** Exercise: 2 stars, optional (peven) *)
@@ -197,7 +198,21 @@ Proof. reflexivity. Qed.
     sets [Z] to [1] otherwise.  Use [ceval_test] to test your
     program. *)
 
-(* FILL IN HERE *)
+Definition peven : com :=
+  Z ::= AId X;
+  WHILE (BLe (ANum 2) (AId Z)) DO
+    Z ::= AMinus (AId Z) (ANum 2)
+  END.
+
+Example pup_to_n_7 :
+  test_ceval (update empty_state X 7) peven
+  = Some (7, 0, 1).
+Proof. reflexivity. Qed.
+
+Example pup_to_n_8 :
+  test_ceval (update empty_state X 8) peven
+  = Some (8, 0, 0).
+Proof. reflexivity. Qed.
 (** [] *)
 
 (* ################################################################ *)
@@ -333,7 +348,18 @@ Theorem ceval__ceval_step: forall c st st',
 Proof. 
   intros c st st' Hce.
   ceval_cases (induction Hce) Case.
-  (* FILL IN HERE *) Admitted.
+    exists 1. reflexivity.
+    exists 1. subst. reflexivity.
+    inversion IHHce1. inversion IHHce2. destruct (le_ge_dec x x0).
+      exists (S x0). apply ceval_step_more with (i1 := x) (i2 := x0) in H; try omega. simpl. rewrite H. assumption.
+      exists (S x).  apply ceval_step_more with (i1 := x0) (i2 := x) in H0; try omega. simpl. rewrite H. assumption.
+    inversion IHHce. exists (S x). simpl. rewrite H. assumption.
+    inversion IHHce. exists (S x). simpl. rewrite H. assumption.
+    exists 1. simpl. rewrite H. reflexivity.
+    inversion IHHce1. inversion IHHce2. destruct (le_ge_dec x x0).
+      exists (S x0). apply ceval_step_more with (i1 := x) (i2 := x0) in H0; try omega. simpl. rewrite H. rewrite H0. assumption.
+      exists (S x).  apply ceval_step_more with (i1 := x0) (i2 := x) in H1; try omega. simpl. rewrite H. rewrite H0. assumption.
+Qed.
 (** [] *)
 
 Theorem ceval_and_ceval_step_coincide: forall c st st',
