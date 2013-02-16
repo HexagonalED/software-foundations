@@ -761,7 +761,49 @@ Definition sum_program_spec := forall l,
   sum_program
   {{ fun st => asnat (st Y) = sum l }}.
 
-(* FILL IN HERE *)
+(** Informal proof:
+
+  Y ::= ANum 0;
+  {{ Y = 0 /\ X = l }} =>
+  {{ Y + sum X = sum l }}
+  WHILE (BIsCons (AId X)) DO 
+    {{ Y + sum X = sum l /\ X = h :: t }}
+    Y ::= APlus (AId Y) (AHead (AId X)) ;
+    {{ Y + sum X = sum l + h /\ X = h :: t }}
+    X ::= ATail (AId X)
+    {{ Y + sum X = sum l }}
+  END.
+  {{ X = [] /\ Y + sum X = sum l }} =>
+  {{ Y = sum l }}
+   
+    Here's the _formal_ proof: *)
+
+Theorem sum_program_correct : sum_program_spec.
+Proof.
+  unfold sum_program_spec. intros l.
+  eapply hoare_consequence.
+    eapply hoare_seq.
+      apply hoare_while with (P := fun st => asnat (st Y) + sum (aslist (st X)) = sum l).
+        Case "loop body preserves invariant".
+          eapply hoare_seq.
+            apply hoare_asgn.
+            eapply hoare_consequence_pre.
+              apply hoare_asgn.
+              intros st [H1 H2].
+                (* X is not [] *)  unfold bassn in H2. simpl in H2. remember (aslist (st X)) as x. destruct x as [| h x'].
+                  inversion H2.
+                  clear H2. unfold assn_sub. rewrite update_eq. rewrite update_neq; try reflexivity. rewrite update_eq.
+                  unfold aeval. simpl. rewrite <- Heqx. rewrite update_neq; try reflexivity.
+                  rewrite <- Heqx. rewrite <- H1. simpl. omega.
+      apply hoare_asgn.
+    Case "start condition".
+      intros st H. unfold assn_sub. rewrite update_eq. rewrite update_neq; try reflexivity.
+      rewrite H. reflexivity.
+    Case "end condition".
+      intros st [H1 H2]. remember (aslist (st X)) as x. destruct x as [| h x'].
+        rewrite <- H1. simpl. omega.
+        exfalso. apply H2. unfold bassn. unfold beval. unfold aeval. rewrite <- Heqx. reflexivity.
+Qed.
 (** [] **)
 
 (** **** Exercise: 4 stars (list_reverse) *)
@@ -789,7 +831,32 @@ Proof.
   intros. simpl. apply snoc_equation.
 Qed.
 
-(* FILL IN HERE *)
+Definition list_reverse_program :=
+  WHILE (BIsCons (AId X)) DO
+    Y ::= ACons (AHead (AId X)) (AId Y);
+    X ::= ATail (AId X)
+  END.
+
+Theorem list_reverse_correct : forall (l : list nat),
+  {{ fun st => aslist (st X) = l /\ aslist (st Y) = [] }}
+  list_reverse_program
+  {{ fun st => aslist (st Y) = rev l }}.
+Proof.
+  intros l. eapply hoare_consequence.
+    apply hoare_while with (P := fun st => rev (aslist (st X)) ++ aslist (st Y) = rev l).
+      SCase "loop body preserves invariant".
+        eapply hoare_seq.
+          apply hoare_asgn.
+          eapply hoare_consequence_pre.
+            apply hoare_asgn.
+            intros st [H1 H2]. remember (aslist (st X)) as x. destruct x as [| h x'].
+              unfold bassn, beval, aeval in H2. rewrite <- Heqx in H2. inversion H2.
+              unfold assn_sub, aeval. simpl. simpl. rewrite update_neq; try reflexivity. rewrite <- Heqx. simpl. rewrite <- rev_equation. assumption.
+    intros st [H1 H2]. rewrite H1. rewrite H2. apply append_nil.
+    intros st [H1 H2]. remember (aslist (st X)) as x. destruct x as [| h x'].
+      apply H1.
+      unfold bassn, beval, aeval in H2. rewrite <- Heqx in H2. exfalso. apply H2. reflexivity.
+Qed.
 (** [] *)
 
 
