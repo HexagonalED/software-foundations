@@ -472,9 +472,19 @@ Lemma step_example3 :
        (tapp (tapp idBBBB idBB) idB)
   ==>* idB.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  eapply multi_step.
+    apply ST_App1. apply ST_AppAbs. auto.
+  simpl. eapply multi_step.
+    apply ST_AppAbs. auto.
+  simpl. apply multi_refl.
+Qed.
 
-(* FILL IN HERE *)
+Lemma step_example3' :
+       (tapp (tapp idBBBB idBB) idB)
+  ==>* idB.
+Proof.
+  normalize.
+Qed.
 (** [] *)
 
 (* ###################################################################### *)
@@ -632,7 +642,14 @@ Example typing_example_2_full :
           (tapp (tvar y) (tapp (tvar y) (tvar x)))))
     (TArrow TBool (TArrow (TArrow TBool TBool) TBool)).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  apply T_Abs.
+  apply T_Abs.
+  apply T_App with (T11 := TBool).
+    apply T_Var. reflexivity.
+    apply T_App with (T11 := TBool).
+      apply T_Var. reflexivity.
+      apply T_Var. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars (typing_example_3) *)
@@ -653,7 +670,14 @@ Example typing_example_3 :
       T.
 
 Proof with auto.
-  (* FILL IN HERE *) Admitted.
+  eapply ex_intro.
+  eapply T_Abs.
+  eapply T_Abs.
+  eapply T_Abs.
+  eapply T_App. apply T_Var. reflexivity.
+  eapply T_App. apply T_Var. reflexivity.
+  apply T_Var. reflexivity.
+Qed.
 (** [] *)
 
 (** We can also show that terms are _not_ typable.  For example, let's
@@ -678,7 +702,7 @@ Proof.
   inversion H5. subst. clear H5.
   inversion H4. subst. clear H4.
   inversion H2. subst. clear H2.
-  inversion H5. subst. clear H5.
+  inversion H5. subst. clear H5. (* not necessary! *)
   (* rewrite extend_neq in H1. rewrite extend_eq in H1. *)
   inversion H1.  Qed.
 
@@ -695,22 +719,32 @@ Example typing_nonexample_3 :
              (tapp (tvar x) (tvar x)))
           T).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros [S [T HT]].
+  inversion HT; subst; clear HT.
+  inversion H4; subst; clear H4.
+  inversion H2; subst; clear H2.
+  inversion H5; subst; clear H5.
+  rewrite H1 in H2; clear H1.
+  inversion H2; clear H2.
+  induction T11.
+    inversion H0.
+    inversion H0. apply IHT11_1. rewrite H2. assumption.
+Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, optional (typing_statements) *)
 
 (** Which of the following propositions are provable? 
        - [y:Bool |- \x:Bool.x : Bool->Bool]
-
+         true
        - [exists T,  empty |- (\y:Bool->Bool. \x:Bool. y x) : T]
-
+         true
        - [exists T,  empty |- (\y:Bool->Bool. \x:Bool. x y) : T]
-
+         false
        - [exists S, x:S |- (\y:Bool->Bool. y) x : S]
-
+         true
        - [exists S, exists T,  x:S |- (x x x) : T]
-
+         false
 []
 *)
 
@@ -838,7 +872,21 @@ Theorem progress' : forall t T,
 Proof.
   intros t.
   t_cases (induction t) Case; intros T Ht; auto.
-  (* FILL IN HERE *) Admitted.
+    Case "tvar". inversion Ht. inversion H1.
+    Case "tapp". right.
+      inversion Ht; subst; clear Ht.
+      destruct (IHt1 (TArrow T11 T) H2).
+        destruct (IHt2 T11 H4).
+          inversion H; subst; try solve by inversion.
+            eexists. apply ST_AppAbs. assumption.
+          inversion H0 as [t' E]. exists (tapp t1 t'). auto.
+        inversion H as [t' E]. exists (tapp t' t2). auto.
+    Case "tif". right.
+      inversion Ht; subst; clear Ht.
+      destruct (IHt1 TBool H3).
+        inversion H; subst; try solve by inversion; eauto.
+        inversion H as [t' E]. exists (tif t' t2 t3). auto.
+Qed.
 (** [] *)
 
 (* ###################################################################### *)
@@ -948,7 +996,10 @@ Corollary typable_empty__closed : forall t T,
     has_type empty t T  ->
     closed t.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros t T HT x x_free.
+  apply free_in_context with (T := T) (Gamma := empty) in x_free; try assumption.
+  inversion x_free as [T' H]. inversion H.
+Qed.
 (** [] *)
 
 (** Sometimes, when we have a proof [Gamma |- t : T], we will need to
@@ -1218,10 +1269,22 @@ Qed.
     is, is it always the case that, if [t ==> t'] and [has_type
     t' T], then [has_type t T]?  If so, prove it.  If not, give a
     counter-example.
-
-(* FILL IN HERE *)
-[]
 *)
+
+Theorem subject_expansion_stlc : ~ (forall t t' T, has_type empty t' T -> t ==> t' -> has_type empty t T).
+Proof.
+  intros H.
+  set (t  := tif ttrue ttrue (tabs x TBool (tvar x))).
+  set (t' := ttrue).
+  assert (forall T, ~ (has_type empty t T)) as not_typeable.
+    intros T HT. inversion HT; subst. inversion H6; subst. solve by inversion.
+  apply (not_typeable TBool).
+  apply H with t'.
+    auto.
+    unfold t, t'. apply ST_IfTrue.
+Qed.
+
+(** [] *)
 
 
 (* ###################################################################### *)
@@ -1243,7 +1306,10 @@ Proof.
   intros t t' T Hhas_type Hmulti. unfold stuck.
   intros [Hnf Hnot_val]. unfold normal_form in Hnf.
   induction Hmulti.
-  (* FILL IN HERE *) Admitted.
+    destruct (progress x0 T Hhas_type); auto.
+    apply IHHmulti; try assumption.
+      apply (preservation x0 y0 T Hhas_type H).
+Qed.
 
 (* ###################################################################### *)
 (** *** Uniqueness of Types *)
@@ -1254,7 +1320,23 @@ Proof.
     type. *)
 (** Formalize this statement and prove it. *)
 
-(* FILL IN HERE *)
+Theorem types_unique : forall t T T' Gamma,
+  has_type Gamma t T ->
+  has_type Gamma t T' ->
+  T = T'.
+Proof.
+  intros t. has_type_cases (induction t) Case; intros T T' Gamma HT HT'; inversion HT; subst; inversion HT'; subst.
+    Case "T_Var". rewrite H1 in H2. inversion H2. reflexivity.
+    Case "T_Abs".
+      set (H' := IHt1 (TArrow T11 T) (TArrow T0 T') Gamma H2 H3).
+      inversion H'. reflexivity.
+    Case "T_App".
+      rewrite (IHt T12 T0 (extend Gamma i t) H4 H5). reflexivity.
+    Case "T_True". reflexivity.
+    Case "T_False". reflexivity.
+    Case "T_If".
+      rewrite (IHt2 T T' Gamma H5 H8). reflexivity.
+Qed.
 (** [] *)
 
 (* ###################################################################### *)
@@ -1279,11 +1361,12 @@ and the following typing rule:
     false, give a counterexample.
 
       - Determinism of [step]
-
+        becomes false: tif ttrue ttrue tfalse ==> ttrue
+                    /\ tif ttrue ttrue tfalse ==> zap
       - Progress
-
+        remains true (any term can make 'progress' with ST_Zap).
       - Preservation
-
+        remains true since when the ST_Zap rule is used, the resulting zap term can have any type. The uniqueness of type (proved above), however, becomes false since zap can have type TBool and (TArrow TBool TBool).
 []
 *)
 
@@ -1300,11 +1383,14 @@ and the following typing rule:
     false, give a counterexample.
 
       - Determinism of [step]
-
+        becomes false: (\x:TBool. x) ttrue ==> ttrue
+                    /\ (\x:TBool. x) ttrue ==> foo ttrue
       - Progress
-
+        remains true because a term involving the foo term cannot be well-typed.
       - Preservation
-
+        becomes false: has_type empty (tabs x TBool (tvar x)) (TArrow TBool TBool)
+                    /\ (tabs x TBool (tvar x)) ==> foo
+                    /\ (forall T, ~ (has_type empty foo T)).
 []
 *)
 
@@ -1316,11 +1402,12 @@ and the following typing rule:
     false, give a counterexample.
 
       - Determinism of [step]
-
+        Remains true. The determinism theorem is true because at most one rule from the step relation can be applied at any given time. This cannot change when a rule is removed. (A rule has to be added or altered for determinism to become false.)
       - Progress
-
+        Becomes false: Define t := (tapp (tapp (tabs x TBool (tabs y TBool (tvar x))) ttrue) tfalse)
+                       ~ (value t) /\ (forall t', ~ (t ==> t'))
       - Preservation
-
+        Remains true (for the same reason for which the determinism still holds).
 []
 *)
 
@@ -1334,11 +1421,14 @@ and the following typing rule:
     false, give a counterexample.
 
       - Determinism of [step]
-
+        becomes false: tif ttrue (tabs x TBool (tvar x)) (tabs x TBool (tvar x)) ==> ttrue
+                    /\ tif ttrue (tabs x TBool (tvar x)) (tabs x TBool (tvar x)) ==> (tabs x TBool (tvar x))
       - Progress
-
+        remains true (we can get stuck, however, because the preservation rule doesn't hold anymore, as we will see)
       - Preservation
-
+        becomes false: has_type (tif ttrue (tabs x TBool (tvar x)) (tabs x TBool (tvar x))) (TArrow TBool TBool)
+                    /\ tif ttrue (tabs x TBool (tvar x)) (tabs x TBool (tvar x)) ==> ttrue
+                    /\ ~ (has_type ttrue (TArrow TBool TBool))
 *)
 
 (** **** Exercise: 2 stars (stlc_variation5) *)
@@ -1353,11 +1443,15 @@ and the following typing rule:
     false, give a counterexample.
 
       - Determinism of [step]
-
+        Remains true.
       - Progress
-
+        Remains true.
       - Preservation
-
+        Becomes false: t  := (tapp (tabs z (tapp z ttrue)) (tabs x TBool (tabs y TBool (tvar x))))
+                       t' := (tapp (tabs x TBool (tabs y TBool (tvar x))) ttrue)
+                       has_type empty t TBool
+                    /\ t ==> t'
+                    /\ ~ (has_type t' TBool)
 *)
 
 (** **** Exercise: 2 stars (stlc_variation6) *)
@@ -1372,10 +1466,12 @@ and the following typing rule:
     false, give a counterexample.
 
       - Determinism of [step]
-
+        Remains true.
       - Progress
-
+        Becomes false: has_type empty (tapp ttrue ttrue) TBool
+                    /\ forall t', ~ (tapp ttrue ttrue ==> t')
       - Preservation
+        Remains true.
 
 *)
 
@@ -1390,11 +1486,11 @@ and the following typing rule:
     false, give a counterexample.
 
       - Determinism of [step]
-
+        Remains true.
       - Progress
-
+        Remains true.
       - Preservation
-
+        Remains true.
 []
 *)
 
