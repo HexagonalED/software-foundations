@@ -1,2 +1,7 @@
 *.glob
 *.vo
+*.html
+*.css
+*.js
+*.gif
+*.jpg
