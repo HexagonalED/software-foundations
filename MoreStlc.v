@@ -969,6 +969,8 @@ Fixpoint subst (x:id) (s:tm) (t:tm) : tm :=
   | tfst t1 => tfst (subst x s t1)
   | tsnd t1 => tsnd (subst x s t1)
   | tunit => tunit
+  | tlet y t1 t2 =>
+      tlet y (subst x s t1) (if beq_id x y then t2 else (subst x s t2))
   (* INSERT HERE *)
   | _ => t  (* ... and delete this line *) 
   end.
@@ -1053,6 +1055,12 @@ Inductive step : tm -> tm -> Prop :=
   | ST_SndPair : forall v1 v2,
          value (tpair v1 v2) ->
          (tsnd (tpair v1 v2)) ==> v2
+  | ST_Let1 : forall y t1 t1' t2,
+         t1 ==> t1' ->
+         (tlet y t1 t2) ==> (tlet y t1' t2)
+  | ST_LetValue : forall y v1 t2,
+         value v1 ->
+         (tlet y v1 t2) ==> [y:=v1]t2
   (* FILL IN HERE *)
 where "t1 '==>' t2" := (step t1 t2).
 
@@ -1066,6 +1074,7 @@ Tactic Notation "step_cases" tactic(first) ident(c) :=
   | Case_aux c "ST_Pair1" | Case_aux c "ST_Pair2"
   | Case_aux c "ST_Fst1" | Case_aux c "ST_FstPair"
   | Case_aux c "ST_Snd1" | Case_aux c "ST_SndPair"
+  | Case_aux c "ST_Let1" | Case_aux c "ST_LetValue"
     (* FILL IN HERE *)
   ].
 
@@ -1123,6 +1132,10 @@ Inductive has_type : context -> tm -> ty -> Prop :=
       has_type Gamma (tsnd t) T2
   | T_Unit : forall Gamma,
       has_type Gamma tunit TUnit
+  | T_Let : forall Gamma y t1 t2 T1 T2,
+      has_type Gamma t1 T1 ->
+      has_type (extend Gamma y T1) t2 T2 ->
+      has_type Gamma (tlet y t1 t2) T2
   (* FILL IN HERE *)
   .
 
@@ -1134,6 +1147,7 @@ Tactic Notation "has_type_cases" tactic(first) ident(c) :=
   | Case_aux c "T_Nat" | Case_aux c "T_Succ" | Case_aux c "T_Pred"
   | Case_aux c "T_Mult" | Case_aux c "T_If0"
   | Case_aux c "T_Pair" | Case_aux c "T_Fst" | Case_aux c "T_Snd" | Case_aux c "T_Unit"
+  | Case_aux c "T_Let"
     (* FILL IN HERE *)
 ].
 
@@ -1270,7 +1284,6 @@ Definition test :=
     (tpred (tnat 6))
     (tsucc (tvar x)).
 
-(* 
 Example typechecks :
   has_type (@empty ty) test TNat.
 Proof. unfold test. eauto 15. Qed.
@@ -1278,7 +1291,6 @@ Proof. unfold test. eauto 15. Qed.
 Example reduces :
   test ==>* tnat 6.
 Proof. unfold test. normalize. Qed.
-*)
 
 End LetTest.
 
@@ -1652,6 +1664,12 @@ Proof with eauto.
     SCase "t steps".
       inversion H as [t' H']. exists (tsnd t')...
   Case "T_Unit". left...
+  Case "T_Let". right.
+    destruct IHHt1; try reflexivity; subst.
+    SCase "t1 is a value".
+      exists ([y:=t1]t2)...
+    SCase "t1 steps".
+      destruct H as [t1' H']. exists (tlet y t1' t2)...
 Qed.
 
 (* ###################################################################### *)
@@ -1701,6 +1719,13 @@ Inductive appears_free_in : id -> tm -> Prop :=
   | afi_snd : forall x t1,
       appears_free_in x t1 ->
       appears_free_in x (tsnd t1)
+  | afi_let1 : forall x y t1 t2,
+      appears_free_in x t1 ->
+      appears_free_in x (tlet y t1 t2)
+  | afi_let2 : forall x y t1 t2,
+      y <> x ->
+      appears_free_in x t2 ->
+      appears_free_in x (tlet y t1 t2)
   (* FILL IN HERE *)
   .
 
@@ -1723,6 +1748,11 @@ Proof with eauto.
   Case "T_Mult". apply T_Mult...
   Case "T_If0". apply T_If0...
   Case "T_Pair". apply T_Pair...
+  Case "T_Let".
+    apply T_Let with T1...
+    apply IHhas_type2.
+    intros x Hafi. unfold extend.
+    remember (beq_id y x) as e. destruct e...
   (* FILL IN HERE *)
 Qed.
 
@@ -1737,6 +1767,9 @@ Proof with eauto.
     destruct IHHtyp as [T' Hctx]... exists T'.
     unfold extend in Hctx. 
     apply not_eq_beq_id_false in H2. rewrite H2 in Hctx...
+  Case "T_Let".
+    destruct (IHHtyp2 H4) as [T' HT']. exists T'. rewrite <- HT'.
+    apply not_eq_beq_id_false in H2. unfold extend. rewrite H2. reflexivity.
   (* FILL IN HERE *)
 Qed.
 
@@ -1821,6 +1854,21 @@ Proof with eauto.
       remember (beq_id y z) as e0. destruct e0...
       apply beq_id_eq in Heqe0. subst.
       rewrite <- Heqe...
+  Case "tlet".
+    rename i into y.
+    inversion Htypt; subst.
+    apply T_Let with T0...
+    remember (beq_id x y) as e. destruct e.
+    SCase "x=y".
+      eapply context_invariance...
+      apply beq_id_eq in Heqe. subst.
+      intros x afi. apply extend_shadow.
+    SCase "x<>y".
+      apply IHt2.
+      eapply context_invariance...
+      intros x0 afi. unfold extend.
+      remember (beq_id y x0) as e0. destruct e0...
+        apply beq_id_eq in Heqe0. rewrite Heqe0 in Heqe. rewrite <- Heqe. reflexivity.
   (* FILL IN HERE *)
 Qed.
 
@@ -1865,6 +1913,8 @@ Proof with eauto.
     inversion HT; subst. assumption.
   Case "T_Snd".
     inversion HT; subst. assumption.
+  Case "T_Let".
+    eapply substitution_preserves_typing...
   (* FILL IN HERE *)
 Qed.
 (** [] *)
