@@ -971,6 +971,10 @@ Fixpoint subst (x:id) (s:tm) (t:tm) : tm :=
   | tunit => tunit
   | tlet y t1 t2 =>
       tlet y (subst x s t1) (if beq_id x y then t2 else (subst x s t2))
+  | tinl T t => tinl T (subst x s t)
+  | tinr T t => tinr T (subst x s t)
+  | tcase t0 y1 t1 y2 t2 => tcase (subst x s t0) y1 (if beq_id x y1 then t1 else (subst x s t1))
+                                                 y2 (if beq_id x y2 then t2 else (subst x s t2))
   (* INSERT HERE *)
   | _ => t  (* ... and delete this line *) 
   end.
@@ -992,6 +996,12 @@ Inductive value : tm -> Prop :=
       value v2 ->
       value (tpair v1 v2)
   | v_unit : value tunit
+  | v_inl : forall v T,
+      value v ->
+      value (tinl T v)
+  | v_inr : forall v T,
+      value v ->
+      value (tinr T v)
   (* FILL IN HERE *)
   .
 
@@ -1061,8 +1071,24 @@ Inductive step : tm -> tm -> Prop :=
   | ST_LetValue : forall y v1 t2,
          value v1 ->
          (tlet y v1 t2) ==> [y:=v1]t2
+  | ST_Inl : forall t1 t1' T,
+         t1 ==> t1' ->
+         (tinl T t1) ==> (tinl T t1')
+  | ST_Inr : forall t1 t1' T,
+         t1 ==> t1' ->
+         (tinr T t1) ==> (tinr T t1')
+  | ST_Case : forall t0 t0' y1 t1 y2 t2,
+         t0 ==> t0' ->
+         (tcase t0 y1 t1 y2 t2) ==> (tcase t0' y1 t1 y2 t2)
+  | ST_CaseInl : forall v0 T y1 t1 y2 t2,
+         value (tinl T v0) ->
+         (tcase (tinl T v0) y1 t1 y2 t2) ==> ([y1:=v0]t1)
+  | ST_CaseInr : forall v0 T y1 t1 y2 t2,
+         value (tinr T v0) ->
+         (tcase (tinr T v0) y1 t1 y2 t2) ==> ([y2:=v0]t2)
   (* FILL IN HERE *)
 where "t1 '==>' t2" := (step t1 t2).
+
 
 Tactic Notation "step_cases" tactic(first) ident(c) :=
   first;
@@ -1075,6 +1101,8 @@ Tactic Notation "step_cases" tactic(first) ident(c) :=
   | Case_aux c "ST_Fst1" | Case_aux c "ST_FstPair"
   | Case_aux c "ST_Snd1" | Case_aux c "ST_SndPair"
   | Case_aux c "ST_Let1" | Case_aux c "ST_LetValue"
+  | Case_aux c "ST_Inl" | Case_aux c "ST_Inr"
+  | Case_aux c "ST_Case" | Case_aux c "ST_CaseInl" | Case_aux c "ST_CaseInr"
     (* FILL IN HERE *)
   ].
 
@@ -1136,6 +1164,17 @@ Inductive has_type : context -> tm -> ty -> Prop :=
       has_type Gamma t1 T1 ->
       has_type (extend Gamma y T1) t2 T2 ->
       has_type Gamma (tlet y t1 t2) T2
+  | T_Inl : forall Gamma t1 T1 T2,
+      has_type Gamma t1 T1 ->
+      has_type Gamma (tinl T2 t1) (TSum T1 T2)
+  | T_Inr : forall Gamma T1 t2 T2,
+      has_type Gamma t2 T2 ->
+      has_type Gamma (tinr T1 t2) (TSum T1 T2)
+  | T_Case : forall Gamma t0 y1 t1 T1 y2 t2 T2 T,
+      has_type Gamma t0 (TSum T1 T2) ->
+      has_type (extend Gamma y1 T1) t1 T ->
+      has_type (extend Gamma y2 T2) t2 T ->
+      has_type Gamma (tcase t0 y1 t1 y2 t2) T
   (* FILL IN HERE *)
   .
 
@@ -1148,6 +1187,7 @@ Tactic Notation "has_type_cases" tactic(first) ident(c) :=
   | Case_aux c "T_Mult" | Case_aux c "T_If0"
   | Case_aux c "T_Pair" | Case_aux c "T_Fst" | Case_aux c "T_Snd" | Case_aux c "T_Unit"
   | Case_aux c "T_Let"
+  | Case_aux c "T_Inl" | Case_aux c "T_Inr" | Case_aux c "T_Case"
     (* FILL IN HERE *)
 ].
 
@@ -1307,7 +1347,6 @@ Definition test :=
     x (tvar x)
     y (tvar y).
 
-(* 
 Example typechecks :
   has_type (@empty ty) test TNat.
 Proof. unfold test. eauto 15. Qed.
@@ -1315,7 +1354,6 @@ Proof. unfold test. eauto 15. Qed.
 Example reduces :
   test ==>* (tnat 5).
 Proof. unfold test. normalize. Qed.
-*)
 
 End Sumtest1.
 
@@ -1339,7 +1377,6 @@ Definition test :=
       (tapp (tvar processSum) (tinl TNat (tnat 5)))
       (tapp (tvar processSum) (tinr TNat (tnat 5)))).
 
-(* 
 Example typechecks :
   has_type (@empty ty) test (TProd TNat TNat).
 Proof. unfold test. eauto 15. Qed.
@@ -1347,7 +1384,6 @@ Proof. unfold test. eauto 15. Qed.
 Example reduces :
   test ==>* (tpair (tnat 5) (tnat 0)).
 Proof. unfold test. normalize. Qed.
-*)
 
 End Sumtest2.
 
@@ -1670,6 +1706,22 @@ Proof with eauto.
       exists ([y:=t1]t2)...
     SCase "t1 steps".
       destruct H as [t1' H']. exists (tlet y t1' t2)...
+  Case "T_Inl".
+    destruct IHHt; try reflexivity; subst.
+    SCase "t1 is a value". left...
+    SCase "t1 steps". right. inversion H as [t1' H']. exists (tinl T2 t1')...
+  Case "T_Inr".
+    destruct IHHt; try reflexivity; subst.
+    SCase "t2 is a value". left...
+    SCase "t2 steps". right. inversion H as [t2' H']. exists (tinr T1 t2')...
+  Case "T_Case". right.
+    destruct IHHt1; try reflexivity; subst.
+    SCase "t0 is a value".
+      inversion H; subst; try (solve by inversion).
+      SSCase "tinl". exists ([y1:=v]t1)...
+      SSCase "tinr". exists ([y2:=v]t2)...
+    SCase "t0 steps".
+      inversion H as [t0' H']. exists (tcase t0' y1 t1 y2 t2)...
 Qed.
 
 (* ###################################################################### *)
@@ -1726,6 +1778,23 @@ Inductive appears_free_in : id -> tm -> Prop :=
       y <> x ->
       appears_free_in x t2 ->
       appears_free_in x (tlet y t1 t2)
+  | afi_inl : forall x t1 T,
+      appears_free_in x t1 ->
+      appears_free_in x (tinl T t1)
+  | afi_inr : forall x t1 T,
+      appears_free_in x t1 ->
+      appears_free_in x (tinr T t1)
+  | afi_case0 : forall x t0 y1 t1 y2 t2,
+      appears_free_in x t0 ->
+      appears_free_in x (tcase t0 y1 t1 y2 t2)
+  | afi_case1 : forall x t0 y1 t1 y2 t2,
+      y1 <> x ->
+      appears_free_in x t1 ->
+      appears_free_in x (tcase t0 y1 t1 y2 t2)
+  | afi_case2 : forall x t0 y1 t1 y2 t2,
+      y2 <> x ->
+      appears_free_in x t2 ->
+      appears_free_in x (tcase t0 y1 t1 y2 t2)
   (* FILL IN HERE *)
   .
 
@@ -1753,6 +1822,14 @@ Proof with eauto.
     apply IHhas_type2.
     intros x Hafi. unfold extend.
     remember (beq_id y x) as e. destruct e...
+  Case "T_Case".
+    apply T_Case with (T1 := T1) (T2 := T2)...
+      apply IHhas_type2.
+        intros x afi_x_t1. unfold extend.
+        remember (beq_id y1 x) as e. destruct e...
+      apply IHhas_type3.
+        intros x afi_x_t2. unfold extend.
+        remember (beq_id y2 x) as e. destruct e...
   (* FILL IN HERE *)
 Qed.
 
@@ -1769,6 +1846,12 @@ Proof with eauto.
     apply not_eq_beq_id_false in H2. rewrite H2 in Hctx...
   Case "T_Let".
     destruct (IHHtyp2 H4) as [T' HT']. exists T'. rewrite <- HT'.
+    apply not_eq_beq_id_false in H2. unfold extend. rewrite H2. reflexivity.
+  Case "T_Case". (* 1 *)
+    destruct (IHHtyp2 H6) as [T' HT']. exists T'.  rewrite <- HT'.
+    apply not_eq_beq_id_false in H2. unfold extend. rewrite H2. reflexivity.
+  Case "T_Case". (* 2 *)
+    destruct (IHHtyp3 H6) as [T' HT']. exists T'.  rewrite <- HT'.
     apply not_eq_beq_id_false in H2. unfold extend. rewrite H2. reflexivity.
   (* FILL IN HERE *)
 Qed.
@@ -1869,6 +1952,20 @@ Proof with eauto.
       intros x0 afi. unfold extend.
       remember (beq_id y x0) as e0. destruct e0...
         apply beq_id_eq in Heqe0. rewrite Heqe0 in Heqe. rewrite <- Heqe. reflexivity.
+  Case "tcase".
+    apply T_Case with (T1 := T1) (T2 := T2)...
+      rename i into y. remember (beq_id x y) as e. destruct e.
+        eapply context_invariance...
+          intros x0 afi. apply beq_id_eq in Heqe. rewrite Heqe. rewrite extend_shadow. reflexivity.
+          apply IHt2. eapply context_invariance...
+            intros x0 afi. unfold extend. remember (beq_id x x0) as e. destruct e...
+              apply beq_id_eq in Heqe0. rewrite <- Heqe0. rewrite beq_id_sym. rewrite <- Heqe. reflexivity.
+      rename i0 into y. remember (beq_id x y) as e. destruct e.
+        eapply context_invariance...
+          intros x0 afi. apply beq_id_eq in Heqe. rewrite Heqe. rewrite extend_shadow. reflexivity.
+          apply IHt3. eapply context_invariance...
+            intros x0 afi. unfold extend. remember (beq_id x x0) as e. destruct e...
+              apply beq_id_eq in Heqe0. rewrite <- Heqe0. rewrite beq_id_sym. rewrite <- Heqe. reflexivity.
   (* FILL IN HERE *)
 Qed.
 
@@ -1915,6 +2012,10 @@ Proof with eauto.
     inversion HT; subst. assumption.
   Case "T_Let".
     eapply substitution_preserves_typing...
+  Case "T_Case". (* 1 *)
+    eapply substitution_preserves_typing... inversion HT1. assumption.
+  Case "T_Case". (* 2 *)
+    eapply substitution_preserves_typing... inversion HT1. assumption.
   (* FILL IN HERE *)
 Qed.
 (** [] *)
