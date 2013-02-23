@@ -965,6 +965,10 @@ Fixpoint subst (x:id) (s:tm) (t:tm) : tm :=
   | tpred t1 => tpred (subst x s t1)
   | tmult t1 t2 => tmult (subst x s t1) (subst x s t2)
   | tif0 t1 t2 t3 => tif0 (subst x s t1) (subst x s t2) (subst x s t3)
+  | tpair t1 t2 => tpair (subst x s t1) (subst x s t2)
+  | tfst t1 => tfst (subst x s t1)
+  | tsnd t1 => tsnd (subst x s t1)
+  | tunit => tunit
   (* INSERT HERE *)
   | _ => t  (* ... and delete this line *) 
   end.
@@ -981,6 +985,11 @@ Inductive value : tm -> Prop :=
   | v_abs : forall x T11 t12,
       value (tabs x T11 t12)
   | v_num : forall n, value (tnat n)
+  | v_pair : forall v1 v2,
+      value v1 ->
+      value v2 ->
+      value (tpair v1 v2)
+  | v_unit : value tunit
   (* FILL IN HERE *)
   .
 
@@ -1009,7 +1018,7 @@ Inductive step : tm -> tm -> Prop :=
          (tpred t1) ==> (tpred t1')
   | ST_PredNat : forall n,
          (tpred (tnat n)) ==> (tnat (pred n))
-  | ST_Mult1 : forall t1 t2 t1',
+  | ST_Mult1 : forall t1 t1' t2,
          t1 ==> t1' ->
          (tmult t1 t2) ==> (tmult t1' t2)
   | ST_Mult2 : forall v1 t2 t2',
@@ -1025,6 +1034,25 @@ Inductive step : tm -> tm -> Prop :=
          (tif0 (tnat 0) t2 t3) ==> t2
   | ST_If0NatSn : forall n t2 t3,
          (tif0 (tnat (S n)) t2 t3) ==> t3
+  | ST_Pair1 : forall t1 t1' t2,
+         t1 ==> t1' ->
+         (tpair t1 t2) ==> (tpair t1' t2)
+  | ST_Pair2 : forall v1 t2 t2',
+         value v1 ->
+         t2 ==> t2' ->
+         (tpair v1 t2) ==> (tpair v1 t2')
+  | ST_Fst1 : forall t1 t1',
+         t1 ==> t1' ->
+         (tfst t1) ==> (tfst t1')
+  | ST_FstPair : forall v1 v2,
+         value (tpair v1 v2) ->
+         (tfst (tpair v1 v2)) ==> v1
+  | ST_Snd1 : forall t1 t1',
+         t1 ==> t1' ->
+         (tsnd t1) ==> (tsnd t1')
+  | ST_SndPair : forall v1 v2,
+         value (tpair v1 v2) ->
+         (tsnd (tpair v1 v2)) ==> v2
   (* FILL IN HERE *)
 where "t1 '==>' t2" := (step t1 t2).
 
@@ -1035,6 +1063,9 @@ Tactic Notation "step_cases" tactic(first) ident(c) :=
   | Case_aux c "ST_Pred" | Case_aux c "ST_PredNat"
   | Case_aux c "ST_Mult1" | Case_aux c "ST_Mult2" | Case_aux c "ST_MultNat"
   | Case_aux c "ST_If0" | Case_aux c "ST_If0Nat0" | Case_aux c "ST_If0NatSn"
+  | Case_aux c "ST_Pair1" | Case_aux c "ST_Pair2"
+  | Case_aux c "ST_Fst1" | Case_aux c "ST_FstPair"
+  | Case_aux c "ST_Snd1" | Case_aux c "ST_SndPair"
     (* FILL IN HERE *)
   ].
 
@@ -1080,6 +1111,18 @@ Inductive has_type : context -> tm -> ty -> Prop :=
       has_type Gamma t2 T ->
       has_type Gamma t3 T ->
       has_type Gamma (tif0 t1 t2 t3) T
+  | T_Pair : forall Gamma t1 t2 T1 T2,
+      has_type Gamma t1 T1 ->
+      has_type Gamma t2 T2 ->
+      has_type Gamma (tpair t1 t2) (TProd T1 T2)
+  | T_Fst : forall Gamma t T1 T2,
+      has_type Gamma t (TProd T1 T2) ->
+      has_type Gamma (tfst t) T1
+  | T_Snd : forall Gamma t T1 T2,
+      has_type Gamma t (TProd T1 T2) ->
+      has_type Gamma (tsnd t) T2
+  | T_Unit : forall Gamma,
+      has_type Gamma tunit TUnit
   (* FILL IN HERE *)
   .
 
@@ -1090,6 +1133,7 @@ Tactic Notation "has_type_cases" tactic(first) ident(c) :=
   [ Case_aux c "T_Var" | Case_aux c "T_Abs" | Case_aux c "T_App"
   | Case_aux c "T_Nat" | Case_aux c "T_Succ" | Case_aux c "T_Pred"
   | Case_aux c "T_Mult" | Case_aux c "T_If0"
+  | Case_aux c "T_Pair" | Case_aux c "T_Fst" | Case_aux c "T_Snd" | Case_aux c "T_Unit"
     (* FILL IN HERE *)
 ].
 
@@ -1205,7 +1249,6 @@ Definition test :=
           (tnat 6))
         (tnat 7))).
 
-(* 
 Example typechecks :
   has_type (@empty ty) test TNat.
 Proof. unfold test. eauto 15. Qed.
@@ -1213,7 +1256,6 @@ Proof. unfold test. eauto 15. Qed.
 Example reduces :
   test ==>* tnat 6.
 Proof. unfold test. normalize. Qed.
-*)
 
 End Prodtest.
 
@@ -1585,6 +1627,31 @@ Proof with eauto.
       SSCase "n = S n'". exists t3...
     SCase "t1 steps".
       inversion H as [t' H']. exists (tif0 t' t2 t3)...
+  Case "T_Pair".
+    destruct IHHt1; try reflexivity; subst.
+    SCase "t1 is a value".
+      destruct IHHt2; try reflexivity; subst.
+      SSCase "t2 is a value".
+        left...
+      SSCase "t2 steps".
+        right. destruct H0 as [t2' H0']. exists (tpair t1 t2')...
+    SCase "t1 steps".
+      right. destruct H as [t1' H']. exists (tpair t1' t2)...
+  Case "T_Fst". right.
+    destruct IHHt; try reflexivity; subst.
+    SCase "t is a value".
+      inversion H; subst; try (solve by inversion).
+      exists v1...
+    SCase "t steps".
+      inversion H as [t' H']. exists (tfst t')...
+  Case "T_Snd". right.
+    destruct IHHt; try reflexivity; subst.
+    SCase "t is a value".
+      inversion H; subst; try (solve by inversion).
+      exists v2...
+    SCase "t steps".
+      inversion H as [t' H']. exists (tsnd t')...
+  Case "T_Unit". left...
 Qed.
 
 (* ###################################################################### *)
@@ -1622,6 +1689,18 @@ Inductive appears_free_in : id -> tm -> Prop :=
   | afi_if0_3 : forall x t1 t2 t3,
       appears_free_in x t3 ->
       appears_free_in x (tif0 t1 t2 t3)
+  | afi_pair1 : forall x t1 t2,
+      appears_free_in x t1 ->
+      appears_free_in x (tpair t1 t2)
+  | afi_pair2 : forall x t1 t2,
+      appears_free_in x t2 ->
+      appears_free_in x (tpair t1 t2)
+  | afi_fst : forall x t1,
+      appears_free_in x t1 ->
+      appears_free_in x (tfst t1)
+  | afi_snd : forall x t1,
+      appears_free_in x t1 ->
+      appears_free_in x (tsnd t1)
   (* FILL IN HERE *)
   .
 
@@ -1643,6 +1722,7 @@ Proof with eauto.
     destruct e...
   Case "T_Mult". apply T_Mult...
   Case "T_If0". apply T_If0...
+  Case "T_Pair". apply T_Pair...
   (* FILL IN HERE *)
 Qed.
 
@@ -1781,6 +1861,10 @@ Proof with eauto.
          by assumption, so we are done. *)
       apply substitution_preserves_typing with T1...
       inversion HT1...
+  Case "T_Fst".
+    inversion HT; subst. assumption.
+  Case "T_Snd".
+    inversion HT; subst. assumption.
   (* FILL IN HERE *)
 Qed.
 (** [] *)
