@@ -975,6 +975,11 @@ Fixpoint subst (x:id) (s:tm) (t:tm) : tm :=
   | tinr T t => tinr T (subst x s t)
   | tcase t0 y1 t1 y2 t2 => tcase (subst x s t0) y1 (if beq_id x y1 then t1 else (subst x s t1))
                                                  y2 (if beq_id x y2 then t2 else (subst x s t2))
+  | tnil T => tnil T
+  | tcons t1 t2 => tcons (subst x s t1) (subst x s t2)
+  | tlcase t0 t1 y1 y2 t2 => tlcase (subst x s t0)
+                                    (subst x s t1)
+                                    y1 y2 (if orb (beq_id x y1) (beq_id x y2) then t2 else (subst x s t2))
   (* INSERT HERE *)
   | _ => t  (* ... and delete this line *) 
   end.
@@ -1002,6 +1007,11 @@ Inductive value : tm -> Prop :=
   | v_inr : forall v T,
       value v ->
       value (tinr T v)
+  | v_nil : forall T, value (tnil T)
+  | v_cons : forall v vs,
+      value v ->
+      value vs ->
+      value (tcons v vs)
   (* FILL IN HERE *)
   .
 
@@ -1086,6 +1096,21 @@ Inductive step : tm -> tm -> Prop :=
   | ST_CaseInr : forall v0 T y1 t1 y2 t2,
          value (tinr T v0) ->
          (tcase (tinr T v0) y1 t1 y2 t2) ==> ([y2:=v0]t2)
+  | ST_Cons1 : forall t1 t1' t2,
+         t1 ==> t1' ->
+         (tcons t1 t2) ==> (tcons t1' t2)
+  | ST_Cons2 : forall t1 t2 t2',
+         value t1 ->
+         t2 ==> t2' ->
+         (tcons t1 t2) ==> (tcons t1 t2')
+  | ST_Lcase1 : forall t0 t0' t1 y1 y2 t2,
+         t0 ==> t0' ->
+         (tlcase t0 t1 y1 y2 t2) ==> (tlcase t0' t1 y1 y2 t2)
+  | ST_LcaseNil : forall T t1 y1 y2 t2,
+         (tlcase (tnil T) t1 y1 y2 t2) ==> t1
+  | ST_LcaseCons : forall v vs t1 y1 y2 t2,
+         value (tcons v vs) ->
+         (tlcase (tcons v vs) t1 y1 y2 t2) ==> ([y1:=v]([y2:=vs]t2))
   (* FILL IN HERE *)
 where "t1 '==>' t2" := (step t1 t2).
 
@@ -1103,6 +1128,8 @@ Tactic Notation "step_cases" tactic(first) ident(c) :=
   | Case_aux c "ST_Let1" | Case_aux c "ST_LetValue"
   | Case_aux c "ST_Inl" | Case_aux c "ST_Inr"
   | Case_aux c "ST_Case" | Case_aux c "ST_CaseInl" | Case_aux c "ST_CaseInr"
+  | Case_aux c "ST_Cons1" | Case_aux c "ST_Cons2"
+  | Case_aux c "ST_Lcase1" | Case_aux c "ST_LcaseNil" | Case_aux c "ST_LcaseCons"
     (* FILL IN HERE *)
   ].
 
@@ -1175,6 +1202,17 @@ Inductive has_type : context -> tm -> ty -> Prop :=
       has_type (extend Gamma y1 T1) t1 T ->
       has_type (extend Gamma y2 T2) t2 T ->
       has_type Gamma (tcase t0 y1 t1 y2 t2) T
+  | T_Nil : forall Gamma T,
+      has_type Gamma (tnil T) (TList T)
+  | T_Cons : forall Gamma T t1 t2,
+      has_type Gamma t1 T ->
+      has_type Gamma t2 (TList T) ->
+      has_type Gamma (tcons t1 t2) (TList T)
+  | T_Lcase : forall Gamma L T t0 t1 y1 y2 t2,
+      has_type Gamma t0 (TList L) ->
+      has_type Gamma t1 T ->
+      has_type (extend (extend Gamma y1 L) y2 (TList L)) t2 T ->
+      has_type Gamma (tlcase t0 t1 y1 y2 t2) T
   (* FILL IN HERE *)
   .
 
@@ -1188,6 +1226,7 @@ Tactic Notation "has_type_cases" tactic(first) ident(c) :=
   | Case_aux c "T_Pair" | Case_aux c "T_Fst" | Case_aux c "T_Snd" | Case_aux c "T_Unit"
   | Case_aux c "T_Let"
   | Case_aux c "T_Inl" | Case_aux c "T_Inr" | Case_aux c "T_Case"
+  | Case_aux c "T_Nil" | Case_aux c "T_Cons" | Case_aux c "T_Lcase"
     (* FILL IN HERE *)
 ].
 
@@ -1403,7 +1442,6 @@ Definition test :=
        (tnat 0)
        x y (tmult (tvar x) (tvar x))).
 
-(* 
 Example typechecks :
   has_type (@empty ty) test TNat.
 Proof. unfold test. eauto 20. Qed.
@@ -1411,7 +1449,6 @@ Proof. unfold test. eauto 20. Qed.
 Example reduces :
   test ==>* (tnat 25).
 Proof. unfold test. normalize. Qed.
-*)
 
 End ListTest.
 
@@ -1722,6 +1759,22 @@ Proof with eauto.
       SSCase "tinr". exists ([y2:=v]t2)...
     SCase "t0 steps".
       inversion H as [t0' H']. exists (tcase t0' y1 t1 y2 t2)...
+  Case "T_Nil". left...
+  Case "T_Cons".
+    destruct IHHt1; try reflexivity; subst.
+    SCase "t1 is a value".
+      destruct IHHt2; try reflexivity; subst.
+      SSCase "t2 is a value". left...
+      SSCase "t2 steps". right. destruct H0 as [t2' H0']. exists (tcons t1 t2')...
+    SCase "t1 steps". right. destruct H as [t1' H']. exists (tcons t1' t2)...
+  Case "T_Lcase". right.
+    destruct IHHt1; try reflexivity; subst.
+    SCase "t0 is a value".
+      inversion H; subst; try (solve by inversion).
+      SSCase "tnil T". exists t1...
+      SSCase "tcons v vs". exists ([y1:=v]([y2:=vs]t2))...
+    SCase "t0 steps".
+      inversion H as [t0' H']. exists (tlcase t0' t1 y1 y2 t2)...
 Qed.
 
 (* ###################################################################### *)
@@ -1795,6 +1848,23 @@ Inductive appears_free_in : id -> tm -> Prop :=
       y2 <> x ->
       appears_free_in x t2 ->
       appears_free_in x (tcase t0 y1 t1 y2 t2)
+  | afi_cons1 : forall x v vs,
+      appears_free_in x v ->
+      appears_free_in x (tcons v vs)
+  | afi_cons2 : forall x v vs,
+      appears_free_in x vs ->
+      appears_free_in x (tcons v vs)
+  | afi_lcase0 : forall x t0 t1 y1 y2 t2,
+      appears_free_in x t0 ->
+      appears_free_in x (tlcase t0 t1 y1 y2 t2)
+  | afi_lcase1 : forall x t0 t1 y1 y2 t2,
+      appears_free_in x t1 ->
+      appears_free_in x (tlcase t0 t1 y1 y2 t2)
+  | afi_lcase2 : forall x t0 t1 y1 y2 t2,
+      y1 <> x ->
+      y2 <> x ->
+      appears_free_in x t2 ->
+      appears_free_in x (tlcase t0 t1 y1 y2 t2)
   (* FILL IN HERE *)
   .
 
@@ -1830,6 +1900,12 @@ Proof with eauto.
       apply IHhas_type3.
         intros x afi_x_t2. unfold extend.
         remember (beq_id y2 x) as e. destruct e...
+  Case "T_Cons". apply T_Cons...
+  Case "T_Lcase". apply T_Lcase with L...
+    apply IHhas_type3.
+     intros x afi_x_t2.
+     unfold extend. remember (beq_id y2 x) as e2. destruct e2...
+       remember (beq_id y1 x) as e1. destruct e1...
   (* FILL IN HERE *)
 Qed.
 
@@ -1853,6 +1929,10 @@ Proof with eauto.
   Case "T_Case". (* 2 *)
     destruct (IHHtyp3 H6) as [T' HT']. exists T'.  rewrite <- HT'.
     apply not_eq_beq_id_false in H2. unfold extend. rewrite H2. reflexivity.
+  Case "T_Lcase".
+    destruct (IHHtyp3 H7) as [T' HT']. exists T'. rewrite <- HT'.
+    apply not_eq_beq_id_false in H3. apply not_eq_beq_id_false in H6.
+    unfold extend. rewrite H3. rewrite H6. reflexivity.
   (* FILL IN HERE *)
 Qed.
 
@@ -1955,17 +2035,46 @@ Proof with eauto.
   Case "tcase".
     apply T_Case with (T1 := T1) (T2 := T2)...
       rename i into y. remember (beq_id x y) as e. destruct e.
+      SCase "x=y".
         eapply context_invariance...
           intros x0 afi. apply beq_id_eq in Heqe. rewrite Heqe. rewrite extend_shadow. reflexivity.
-          apply IHt2. eapply context_invariance...
-            intros x0 afi. unfold extend. remember (beq_id x x0) as e. destruct e...
-              apply beq_id_eq in Heqe0. rewrite <- Heqe0. rewrite beq_id_sym. rewrite <- Heqe. reflexivity.
+      SCase "x<>y".
+        apply IHt2. eapply context_invariance...
+          intros x0 afi. unfold extend. remember (beq_id x x0) as e. destruct e...
+            apply beq_id_eq in Heqe0. rewrite <- Heqe0. rewrite beq_id_sym. rewrite <- Heqe. reflexivity.
       rename i0 into y. remember (beq_id x y) as e. destruct e.
+      SCase "x=y".
         eapply context_invariance...
           intros x0 afi. apply beq_id_eq in Heqe. rewrite Heqe. rewrite extend_shadow. reflexivity.
-          apply IHt3. eapply context_invariance...
-            intros x0 afi. unfold extend. remember (beq_id x x0) as e. destruct e...
-              apply beq_id_eq in Heqe0. rewrite <- Heqe0. rewrite beq_id_sym. rewrite <- Heqe. reflexivity.
+      SCase "x<>y".
+        apply IHt3. eapply context_invariance...
+          intros x0 afi. unfold extend. remember (beq_id x x0) as e. destruct e...
+            apply beq_id_eq in Heqe0. rewrite <- Heqe0. rewrite beq_id_sym. rewrite <- Heqe. reflexivity.
+  Case "tlcase".
+    rename i into y1. rename i0 into y2.
+    apply T_Lcase with L...
+      remember (orb (beq_id x y1) (beq_id x y2)) as oe. destruct oe.
+      SCase "x=y1 || x=y2".
+        eapply context_invariance...
+        symmetry in Heqoe. apply orb_true_iff in Heqoe.
+        intros z afi_z_t3. unfold extend.
+        remember (beq_id y2 z) as e1. destruct e1...
+        remember (beq_id y1 z) as e2. destruct e2...
+        remember (beq_id x z)  as e3. destruct e3...
+        apply beq_id_eq in Heqe3. subst.
+        rewrite beq_id_sym in Heqe1. rewrite beq_id_sym in Heqe2.
+        rewrite <- Heqe1 in Heqoe. rewrite <- Heqe2 in Heqoe.
+        inversion Heqoe; solve by inversion.
+      SCase "x<>y1 /\ x<>y2".
+        apply IHt3.
+        eapply context_invariance...
+        intros z afi_z_t3.
+        symmetry in Heqoe. apply orb_false_iff in Heqoe. destruct Heqoe as [Oe1 Oe2].
+        (*apply beq_id_false_not_eq in Oe1.*)
+        rewrite beq_id_sym in Oe1. rewrite beq_id_sym in Oe2.
+        unfold extend. remember (beq_id x z) as e. destruct e...
+        SSCase "x = z".
+          apply beq_id_eq in Heqe; subst. rewrite Oe1. rewrite Oe2. reflexivity.
   (* FILL IN HERE *)
 Qed.
 
@@ -2013,9 +2122,13 @@ Proof with eauto.
   Case "T_Let".
     eapply substitution_preserves_typing...
   Case "T_Case". (* 1 *)
-    eapply substitution_preserves_typing... inversion HT1. assumption.
+    inversion HT1. eapply substitution_preserves_typing...
   Case "T_Case". (* 2 *)
-    eapply substitution_preserves_typing... inversion HT1. assumption.
+    inversion HT1. eapply substitution_preserves_typing...
+  Case "T_Lcase".
+    inversion HT1.
+    eapply substitution_preserves_typing...
+      eapply substitution_preserves_typing...
   (* FILL IN HERE *)
 Qed.
 (** [] *)
