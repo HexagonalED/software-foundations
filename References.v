@@ -454,7 +454,7 @@ Definition tseq t1 t2 :=
 >>
 would it behave the same? *)
 
-(* FILL IN HERE *)
+(* No! After the assignment in the expression above, a contains the function above, with m and v bound by the closure. When we try to simplify the expression (!a) n where n <> m, we get (!a) n (without changing the value of a or of another ref). Thus, we are trapped in an infinite loop. *)
 (** [] *)
 
 (* ################################### *)
@@ -506,7 +506,7 @@ would it behave the same? *)
 (** **** Exercise: 1 star (type_safety_violation) *)
 (** Show how this can lead to a violation of type safety. *)
 
-(* FILL IN HERE *)
+(* We can now use these two names for the same storage cell to cast an arbitrary integer to a boolean by assigning the integer to the integer reference and reading the value back from the boolean reference. Therefore, the datatype boolean has countably infinitely many values, not two. *)
 (** [] *)
 
 (* ###################################################################### *)
@@ -967,6 +967,10 @@ Definition context := partial_map ty.
 (** Can you find a term whose evaluation will create this particular
     cyclic store? *)
 
+(* let a = ref (\x:Nat. x)
+   in let b = ref (\y:Nat. (a!) y)
+      in a := ref (\y:Nat. (b!) y) *)
+
 (** [] *)
 
 (** Both of these problems arise from the fact that our proposed
@@ -1180,7 +1184,13 @@ Definition store_well_typed (ST:store_ty) (st:store) :=
     different store typings [ST1] and [ST2] such that both
     [ST1 |- st] and [ST2 |- st]? *)
 
-(* FILL IN HERE *)
+(*
+  From above:
+  [\x:Nat. (!(loc 1)) x, \x:Nat. (!(loc 0)) x]
+  has types [Nat -> Nat, Nat -> Nat],
+            [Nat -> Bool, Nat -> Bool]
+  and       [Nat -> X, Nat -> X] for every X
+*)
 (** [] *)
 
 (** We can now state something closer to the desired preservation
@@ -1873,23 +1883,48 @@ Qed.
     [4].) *)
 
 Definition factorial : tm :=
-  (* FILL IN HERE *) admit.
+  (tabs y TNat
+    (tapp
+      (tabs r (TRef (TArrow TNat TNat))
+        (tseq
+          (tassign
+            (tvar r)
+            (tabs x TNat
+              (tif0 (tvar x)
+                (tnat 1)
+                (tmult (tvar x) (tapp (tderef (tvar r)) (tpred (tvar x)))))))
+          (tapp (tderef (tvar r)) (tvar y))))
+      (tref (tabs x TNat (tvar x))))).
 
 Lemma factorial_type : has_type empty nil factorial (TArrow TNat TNat).
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  unfold factorial. apply T_Abs. apply T_App with (TRef (TArrow TNat TNat)).
+    apply T_Abs. unfold tseq. apply T_App with TUnit.
+      apply T_Abs. apply T_App with TNat.
+        apply T_Deref. apply T_Var...
+        apply T_Var...
+      apply T_Assign with (TArrow TNat TNat).
+        apply T_Var...
+        apply T_Abs. apply T_If0.
+          apply T_Var...
+          apply T_Nat.
+          apply T_Mult.
+            apply T_Var...
+            apply T_App with TNat.
+              apply T_Deref. apply T_Var...
+              apply T_Pred. apply T_Var...
+    apply T_Ref. apply T_Abs. apply T_Var...
+Qed.
 
 (** If your definition is correct, you should be able to just
     uncomment the example below; the proof should be fully
     automatic using the [reduce] tactic. *)
 
-(* 
 Lemma factorial_4 : exists st, 
   tapp factorial (tnat 4) / nil ==>* tnat 24 / st.
 Proof.
   eexists. unfold factorial. reduce.
 Qed.
-*)
 (** [] *)
 
 (* ################################### *)
