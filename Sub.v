@@ -232,6 +232,9 @@ Require Export MoreStlc.
     ... such that the application [g f] will get stuck during
     execution.
 
+g := \x : Student. x.gpa
+f := \f : f ({ name = "Max Mustermann", age = 42 })
+
 []
 *)
 
@@ -396,19 +399,19 @@ Require Export MoreStlc.
     ([A], [B], and [C] here are base types.)
 
     - [T->S <: T->S]
-
+      true
     - [Top->U <: S->Top]
-
+      true
     - [(C->C) -> (A*B)  <:  (C->C) -> (Top*B)]
-
+      true
     - [T->T->U <: S->S->V]
-
+      true
     - [(T->T)->U <: (S->S)->V]
-
+      false
     - [((T->S)->T)->U <: ((S->T)->S)->V]
-
+      true
     - [S*V <: T*U]
-
+      false
 []
 *)
 
@@ -422,9 +425,16 @@ Require Export MoreStlc.
 
 Write these types in order from the most specific to the most general.
 
+- [Top -> Student]
+- [Person -> Student]
+- [Student -> Person]
+- [Student -> Top]
+- [Top]
 
 Where does the type [Top->Top->Student] fit into this order?
 
+[Top->Top->Student] <: Top
+[Top->Top->Student] <: [Student->Top]
 
 *)
 
@@ -434,57 +444,58 @@ Where does the type [Top->Top->Student] fit into this order?
       forall S T,
           S <: T  ->
           S->S   <:  T->T
-
+      (false)
       forall S,
            S <: A->A ->
            exists T,
               S = T->T  /\  T <: A
-
+      (false)
       forall S T1 T1,
            (S <: T1 -> T2) ->
            exists S1 S2,
               S = S1 -> S2  /\  T1 <: S1  /\  S2 <: T2 
-
+      (true)
       exists S,
            S <: S->S 
-
+      (false)
       exists S,
            S->S <: S   
-
-      forall S T2 T2,
+      (true)
+      forall S T1 T2,
            S <: T1*T2 ->
            exists S1 S2,
-              S = S1*S2  /\  S1 <: T1  /\  S2 <: T2  
+              S = S1*S2  /\  S1 <: T1  /\  S2 <: T2
+      (true)
 [] *)
 
 (** **** Exercise: 1 star (subtype_concepts_tf) *)
 (** Which of the following statements are true, and which are false?
     - There exists a type that is a supertype of every other type.
-
+      true
     - There exists a type that is a subtype of every other type.
-
+      false
     - There exists a pair type that is a supertype of every other
       pair type.
-
+      true
     - There exists a pair type that is a subtype of every other
       pair type.
-
+      false
     - There exists an arrow type that is a supertype of every other
       arrow type.
-
+      false
     - There exists an arrow type that is a subtype of every other
       arrow type.
-
+      false
     - There is an infinite descending chain of distinct types in the
       subtype relation---that is, an infinite sequence of types
       [S0], [S1], etc., such that all the [Si]'s are different and
       each [S(i+1)] is a subtype of [Si].
-
+      true
     - There is an infinite _ascending_ chain of distinct types in
       the subtype relation---that is, an infinite sequence of types
       [S0], [S1], etc., such that all the [Si]'s are different and
       each [S(i+1)] is a supertype of [Si].
-
+      false
 []
 *)
 
@@ -495,7 +506,9 @@ Where does the type [Top->Top->Student] fit into this order?
          ~(exists n, T = TBase n) ->
          exists S,
             S <: T  /\  S <> T
-]] 
+]]
+
+(I don't know intuitively what TBase is, but from the inductive definition below, I conclude that the statement is false, because TBool (or TUnit) doesn't have a proper subtype.
 []
 *)
 
@@ -506,8 +519,12 @@ Where does the type [Top->Top->Student] fit into this order?
      have [Unit] among the base types and [unit] as a constant of this
      type.)
        empty |- (\p:T*Top. p.fst) ((\z:A.z), unit) : A->A
+     
+   Top->A
 
    - What is the _largest_ type [T] that makes the same assertion true?
+
+   A->A
 
 []
 *)
@@ -518,7 +535,11 @@ Where does the type [Top->Top->Student] fit into this order?
      assertion true?
        empty |- (\p:(A->A * B->B). p) ((\z:A.z), (\z:B.z)) : T
 
+   (Top->A * Top->B)
+
    - What is the _largest_ type [T] that makes the same assertion true?
+
+   Top
 
 []
 *)
@@ -541,8 +562,12 @@ Where does the type [Top->Top->Student] fit into this order?
        exists S,
          empty |- (\p:(A*T). (p.snd) (p.fst)) : S
 
+   Top->S
+
    - What is the _largest_ type [T] that makes the same
      assertion true?
+
+   A->S
 
 []
 *)
@@ -552,7 +577,7 @@ Where does the type [Top->Top->Student] fit into this order?
     assertion true?
       exists S, exists t, 
         empty |- (\x:T. x x) t : S
-]] 
+]] Top->Top
 []
 *)
 
@@ -560,7 +585,7 @@ Where does the type [Top->Top->Student] fit into this order?
 (** What is the _smallest_ type [T] that makes the following
     assertion true?
       empty |- (\x:Top. x) ((\z:A.z) , (\z:B.z)) : T
-]] 
+]] Top
 []
 *)
 
@@ -586,6 +611,11 @@ intuitively corresponds to the "depth" subtyping rule for records. Extending the
 for products.
 Is this a good idea? Briefly explain why or why not.
 
+No, this is not a good idea, since we could have a function f that takes as arguments a pair of a student and a person:
+
+f := \p : student*person. p.fst.gpa + p.snd.age.
+
+But we can't apply this function to a pair of a person and a student (note the ordering!), since a person doesn't have a gpa.
 []
 *)
 
