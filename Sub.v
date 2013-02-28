@@ -650,13 +650,14 @@ Inductive ty : Type :=
   | TBase  : id -> ty
   | TArrow : ty -> ty -> ty
   | TUnit  : ty
+  | TProd  : ty -> ty -> ty
 .
 
 Tactic Notation "T_cases" tactic(first) ident(c) :=
   first;
   [ Case_aux c "TTop" | Case_aux c "TBool" 
   | Case_aux c "TBase" | Case_aux c "TArrow" 
-  | Case_aux c "TUnit" | 
+  | Case_aux c "TUnit" | Case_aux c "TProd"
   ].
 
 Inductive tm : Type :=
@@ -666,7 +667,10 @@ Inductive tm : Type :=
   | ttrue : tm
   | tfalse : tm
   | tif : tm -> tm -> tm -> tm
-  | tunit : tm 
+  | tunit : tm
+  | tpair : tm -> tm -> tm
+  | tfst : tm -> tm
+  | tsnd : tm -> tm
 .
 
 Tactic Notation "t_cases" tactic(first) ident(c) :=
@@ -674,7 +678,8 @@ Tactic Notation "t_cases" tactic(first) ident(c) :=
   [ Case_aux c "tvar" | Case_aux c "tapp" 
   | Case_aux c "tabs" | Case_aux c "ttrue" 
   | Case_aux c "tfalse" | Case_aux c "tif"
-  | Case_aux c "tunit" 
+  | Case_aux c "tunit" | Case_aux c "tpair"
+  | Case_aux c "tfst" | Case_aux c "tsnd"
   ].
 
 (* ################################### *)
@@ -699,6 +704,9 @@ Fixpoint subst (x:id) (s:tm)  (t:tm) : tm :=
       tif (subst x s t1) (subst x s t2) (subst x s t3)
   | tunit => 
       tunit 
+  | tpair t1 t2 => tpair (subst x s t1) (subst x s t2)
+  | tfst t1 => tfst (subst x s t1)
+  | tsnd t1 => tsnd (subst x s t1)
   end.
 
 Notation "'[' x ':=' s ']' t" := (subst x s t) (at level 20).
@@ -718,6 +726,10 @@ Inductive value : tm -> Prop :=
       value tfalse
   | v_unit : 
       value tunit
+  | v_pair : forall v1 v2,
+      value v1 ->
+      value v2 ->
+      value (tpair v1 v2)
 .
 
 Hint Constructors value.
@@ -742,13 +754,35 @@ Inductive step : tm -> tm -> Prop :=
   | ST_If : forall t1 t1' t2 t3,
       t1 ==> t1' ->
       (tif t1 t2 t3) ==> (tif t1' t2 t3)
+  | ST_Pair1 : forall t1 t1' t2,
+      t1 ==> t1' ->
+      (tpair t1 t2) ==> (tpair t1' t2)
+  | ST_Pair2 : forall t1 t2 t2',
+      value t1 ->
+      t2 ==> t2' ->
+      (tpair t1 t2) ==> (tpair t1 t2')
+  | ST_Fst1 : forall t1 t1',
+      t1 ==> t1' ->
+      (tfst t1) ==> (tfst t1')
+  | ST_FstPair : forall t1 t2,
+      value (tpair t1 t2) ->
+      (tfst (tpair t1 t2)) ==> t1
+  | ST_Snd1 : forall t1 t1',
+      t1 ==> t1' ->
+      (tfst t1) ==> (tfst t1')
+  | ST_SndPair : forall t1 t2,
+      value (tpair t1 t2) ->
+      (tfst (tpair t1 t2)) ==> t1
 where "t1 '==>' t2" := (step t1 t2).
 
 Tactic Notation "step_cases" tactic(first) ident(c) :=
   first;
   [ Case_aux c "ST_AppAbs" | Case_aux c "ST_App1" 
   | Case_aux c "ST_App2" | Case_aux c "ST_IfTrue" 
-  | Case_aux c "ST_IfFalse" | Case_aux c "ST_If"  
+  | Case_aux c "ST_IfFalse" | Case_aux c "ST_If"
+  | Case_aux c "ST_Pair1" | Case_aux c "ST_Pair2"
+  | Case_aux c "ST_Fst1" | Case_aux c "ST_FstPair"
+  | Case_aux c "ST_Snd1" | Case_aux c "ST_SndPair"
   ].
 
 Hint Constructors step.
@@ -776,6 +810,10 @@ Inductive subtype : ty -> ty -> Prop :=
     subtype T1 S1 ->
     subtype S2 T2 ->
     subtype (TArrow S1 S2) (TArrow T1 T2)
+  | S_Prod : forall S1 S2 T1 T2,
+    subtype S1 T1 ->
+    subtype S2 T2 ->
+    subtype (TProd S1 S2) (TProd T1 T2)
 .
 
 (** Note that we don't need any special rules for base types: they are
@@ -787,7 +825,8 @@ Hint Constructors subtype.
 Tactic Notation "subtype_cases" tactic(first) ident(c) :=
   first;
   [ Case_aux c "S_Refl" | Case_aux c "S_Trans"
-  | Case_aux c "S_Top" | Case_aux c "S_Arrow" 
+  | Case_aux c "S_Top" | Case_aux c "S_Arrow"
+  | Case_aux c "S_Prod"
   ].
 
 Module Examples.
@@ -818,22 +857,25 @@ Notation Integer := (TBase (Id 11)).
                   ssn  : Integer }
 *)
 
-Definition Person : ty := 
-(* FILL IN HERE *) admit.
-Definition Student : ty := 
-(* FILL IN HERE *) admit.
-Definition Employee : ty := 
-(* FILL IN HERE *) admit.
+Definition Person : ty := TProd String TTop.
+Definition Student : ty := TProd String Float.
+Definition Employee : ty := TProd String Integer.
 
 Example sub_student_person :
   subtype Student Person.
-Proof. 
-(* FILL IN HERE *) Admitted.
+Proof.
+  apply S_Prod.
+    apply S_Refl.
+    apply S_Top.
+Qed.
 
 Example sub_employee_person :
   subtype Employee Person.
 Proof. 
-(* FILL IN HERE *) Admitted.
+  apply S_Prod.
+    apply S_Refl.
+    apply S_Top.
+Qed.
 (** [] *)
 
 Example subtyping_example_0 :
@@ -855,7 +897,10 @@ Example subtyping_example_1 :
           (TArrow (TArrow C C) Person).
 (* Top->Student <: (C->C)->Person *)
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  apply S_Arrow.
+    apply S_Top.
+    apply sub_student_person.
+Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, optional (subtyping_example_2) *)
@@ -864,7 +909,10 @@ Example subtyping_example_2 :
           (TArrow Person TTop).
 (* Top->Person <: Person->Top *)
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  apply S_Arrow.
+    apply S_Top.
+    apply S_Top.
+Qed.
 (** [] *)
 
 End Examples.
@@ -904,6 +952,16 @@ Inductive has_type : context -> tm -> ty -> Prop :=
        has_type Gamma (tif t1 t2 t3) T
   | T_Unit : forall Gamma,
       has_type Gamma tunit TUnit
+  | T_Pair : forall Gamma t1 T1 t2 T2,
+      has_type Gamma t1 T1 ->
+      has_type Gamma t2 T2 ->
+      has_type Gamma (tpair t1 t2) (TProd T1 T2)
+  | T_Fst : forall Gamma t T1 T2,
+      has_type Gamma t (TProd T1 T2) ->
+      has_type Gamma (tfst t) T1
+  | T_Snd : forall Gamma t T1 T2,
+      has_type Gamma t (TProd T1 T2) ->
+      has_type Gamma (tsnd t) T2
   (* New rule of subsumption *)
   | T_Sub : forall Gamma t S T,
       has_type Gamma t S ->
@@ -917,7 +975,8 @@ Tactic Notation "has_type_cases" tactic(first) ident(c) :=
   [ Case_aux c "T_Var" | Case_aux c "T_Abs" 
   | Case_aux c "T_App" | Case_aux c "T_True" 
   | Case_aux c "T_False" | Case_aux c "T_If"
-  | Case_aux c "T_Unit"     
+  | Case_aux c "T_Unit" | Case_aux c "T_Pair"
+  | Case_aux c "T_Fst" | Case_aux c "T_Snd"   
   | Case_aux c "T_Sub" ].
 
 (* ############################################### *)
@@ -933,20 +992,52 @@ Import Examples.
 (** **** Exercise: 1 star, optional (typing_example_0) *)
 (* empty |- ((\z:A.z), (\z:B.z)) 
           : (A->A * B->B) *)
-(* FILL IN HERE *)
+
+Example typing_example_0 : has_type empty (tpair (tabs z A (tvar z)) (tabs z B (tvar z))) (TProd (TArrow A A) (TArrow B B)).
+Proof.
+  apply T_Pair.
+    apply T_Abs. apply T_Var. reflexivity.
+    apply T_Abs. apply T_Var. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, optional (typing_example_1) *)
 (* empty |- (\x:(Top * B->B). x.snd) ((\z:A.z), (\z:B.z)) 
           : B->B *)
-(* FILL IN HERE *)
+
+Example typing_example_1 : has_type empty (tapp (tabs x (TProd TTop (TArrow B B)) (tsnd (tvar x))) (tpair (tabs z A (tvar z)) (tabs z B (tvar z)))) (TArrow B B).
+Proof.
+  eapply T_App.
+    apply T_Abs. eapply T_Snd. apply T_Var. reflexivity.
+    apply T_Pair.
+      eapply T_Sub.
+        apply T_Abs. apply T_Var. reflexivity.
+        apply S_Top.
+      apply T_Abs. apply T_Var. reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, optional (typing_example_2) *)
 (* empty |- (\z:(C->C)->(Top * B->B). (z (\x:C.x)).snd)
               (\z:C->C. ((\z:A.z), (\z:B.z)))
           : B->B *)
-(* FILL IN HERE *)
+
+Example typing_example_2 : has_type empty (tapp (tabs z (TArrow (TArrow C C) (TProd TTop (TArrow B B))) (tsnd (tapp (tvar z) (tabs x C (tvar x))))) (tabs z (TArrow C C) (tpair (tabs z A (tvar z)) (tabs z B (tvar z))))) (TArrow B B).
+Proof.
+  eapply T_App.
+    apply T_Abs. eapply T_Snd. eapply T_App.
+      apply T_Var. reflexivity.
+      apply T_Abs. apply T_Var. reflexivity.
+    eapply T_Sub.
+      apply T_Abs. apply T_Pair.
+        apply T_Abs. apply T_Var. reflexivity.
+        apply T_Abs. apply T_Var. reflexivity.
+      apply S_Arrow.
+        apply S_Refl.
+        apply S_Prod.
+          apply S_Top.
+          apply S_Refl.
+Qed.
 (** [] *)
 
 End Examples2.
@@ -984,7 +1075,10 @@ Lemma sub_inversion_Bool : forall U,
 Proof with auto.
   intros U Hs.
   remember TBool as V.
-  (* FILL IN HERE *) Admitted.
+  subtype_cases (induction Hs) Case; try (solve by inversion).
+    Case "S_Refl". reflexivity.
+    Case "S_Trans". subst. rewrite IHHs2 in *...
+Qed.
 
 (** **** Exercise: 3 stars, optional (sub_inversion_arrow) *)
 Lemma sub_inversion_arrow : forall U V1 V2,
@@ -995,9 +1089,16 @@ Proof with eauto.
   intros U V1 V2 Hs.
   remember (TArrow V1 V2) as V.
   generalize dependent V2. generalize dependent V1.
-  (* FILL IN HERE *) Admitted.
-
-
+  subtype_cases (induction Hs) Case; intros V1 V2 HeqV; try (solve by inversion).
+    Case "S_Refl". exists V1. exists V2...
+    Case "S_Trans".
+      apply IHHs2 in HeqV. destruct HeqV as [U1 [U2 [HeqU [sub_V1_U1 sub_U2_V2]]]].
+      apply IHHs1 in HeqU. destruct HeqU as [W1 [W2 [HeqS [sub_U1_W1 sub_W2_U2]]]].
+      exists W1. exists W2. split. assumption. split; eapply S_Trans; eassumption.
+    Case "S_Arrow".
+      inversion HeqV; subst; clear HeqV.
+      exists S1. exists S2...
+Qed.
 (** [] *)
 
 (* ########################################## *)
@@ -1033,7 +1134,14 @@ Lemma canonical_forms_of_arrow_types : forall Gamma s T1 T2,
   exists x, exists S1, exists s2,
      s = tabs x S1 s2.
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  intros. remember (TArrow T1 T2) as A. generalize dependent T2. generalize dependent T1.
+  has_type_cases (induction H) Case; intros; try (solve by inversion).
+    Case "T_Abs". exists x. exists T11. exists t12...
+    Case "T_Sub".
+      rewrite HeqA in *; clear HeqA.
+      apply sub_inversion_arrow in H1. destruct H1 as [U1 [U2 [HeqS [sub_T1_U1 sub_U2_T2]]]].
+      eapply IHhas_type...
+Qed.
 (** [] *)
 
 (** Similarly, the canonical forms of type [Bool] are the constants
