@@ -145,12 +145,12 @@ Notation i2 := (Id 8).
 
 (** [{ i1:A }] *)
 
-(* Check (TRCons i1 A TRNil). *)
+Check (TRCons i1 A TRNil).
 
 (** [{ i1:A->B, i2:A }] *)
 
-(* Check (TRCons i1 (TArrow A B) 
-           (TRCons i2 A TRNil)). *)
+Check (TRCons i1 (TArrow A B) 
+           (TRCons i2 A TRNil)).
 
 (* ###################################################################### *)
 (** *** Well-Formedness *)
@@ -396,8 +396,11 @@ Lemma typing_example_2 :
             (trcons i2 (tabs a B (tvar a))
              trnil)))
     (TArrow B B).
-Proof. 
-  (* FILL IN HERE *) Admitted.
+Proof with eauto. 
+  eapply T_App.
+    apply T_Abs... eapply T_Proj. apply T_Var. reflexivity. auto. auto.
+    auto.
+Qed.
 
 (** Before starting to prove this fact (or the one above!), make sure
     you understand what it is saying. *)
@@ -409,7 +412,8 @@ Example typing_nonexample :
                (trcons i1 (tabs a B (tvar a)) (tvar a))
                T.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros [T HT]. inversion HT; subst; clear HT. inversion H7.
+Qed.
 
 Example typing_nonexample_2 : forall y,
   ~ exists T,
@@ -419,7 +423,8 @@ Example typing_nonexample_2 : forall y,
                    (trcons i1 (tvar y) (trcons i2 (tvar y) trnil)))
            T.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros y [T HT]. inversion HT; subst; clear HT. inversion H2; subst. inversion H4; subst. inversion H10.
+Qed.
 
 (* ###################################################################### *)
 (** ** Properties of Typing *)
