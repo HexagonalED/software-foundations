@@ -246,7 +246,10 @@ Example subtyping_example_1 :
   subtype TRcd_kj TRcd_j.
 (* {k:A->A,j:B->B} <: {j:B->B} *)
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  unfold TRcd_kj, TRcd_j.
+  eapply S_Trans. apply S_RcdPerm...
+  apply S_RcdDepth...
+Qed.
 (** [] *)
 
 (** **** Exercise: 1 star *)
@@ -255,7 +258,8 @@ Example subtyping_example_2 :
           (TArrow (TArrow C C) TRcd_j).
 (* Top->{k:A->A,j:B->B} <: (C->C)->{j:B->B} *)
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  apply S_Arrow... apply subtyping_example_1.
+Qed.
 (** [] *)
 
 (** **** Exercise: 1 star *)
@@ -264,7 +268,8 @@ Example subtyping_example_3 :
           (TArrow (TRCons k B TRNil) TRNil).
 (* {}->{j:A} <: {k:B}->{} *)
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  apply S_Arrow...
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars *)
@@ -273,7 +278,10 @@ Example subtyping_example_4 :
           (TRCons z C (TRCons y B (TRCons x A TRNil))).
 (* {x:A,y:B,z:C} <: {z:C,y:B,x:A} *)
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  eapply S_Trans. apply S_RcdPerm...
+  eapply S_Trans. apply S_RcdDepth. apply S_Refl. auto. apply S_RcdPerm... auto. auto.
+  apply S_RcdPerm...
+Qed.
 (** [] *)
 
 Definition trcd_kj := 
@@ -372,7 +380,16 @@ Proof with eauto.
   intros U V1 V2 Hs.
   remember (TArrow V1 V2) as V.
   generalize dependent V2. generalize dependent V1.
-  (* FILL IN HERE *) Admitted.
+  subtype_cases (induction Hs) Case; intros; try solve by inversion.
+  Case "S_Refl".
+    exists V1. exists V2. subst. inversion H...
+  Case "S_Trans".
+    destruct (IHHs2 _ _ HeqV) as [W1 [W2 [HeqU [sub_V1_W1 sub_W2_V2]]]].
+    destruct (IHHs1 _ _ HeqU) as [U1 [U2 [HeqS [sub_W1_U1 sub_U2_W2]]]].
+    exists U1. exists U2...
+  Case "S_Arrow".
+    exists S1. exists S2. inversion HeqV; subst...
+Qed.
 
 (* ###################################################################### *)
 (** * Typing *)
@@ -437,7 +454,20 @@ Example typing_example_0 :
            TRcd_kj.
 (* empty |- {k=(\z:A.z), j=(\z:B.z)} : {k:A->A,j:B->B} *)
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold TRcd_kj, TRcd_j. apply T_RCons.
+    apply T_Abs.
+      constructor.
+      apply T_Var. reflexivity. constructor.
+    apply T_RCons.
+      apply T_Abs.
+        constructor.
+        apply T_Var. reflexivity. constructor.
+      apply T_RNil.
+      constructor.
+      constructor.
+    constructor.
+    constructor.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars *)
@@ -448,7 +478,12 @@ Example typing_example_1 :
            (TArrow B B).
 (* empty |- (\x:{k:A->A,j:B->B}. x.j) {k=(\z:A.z), j=(\z:B.z)} : B->B *)
 Proof with eauto. 
-  (* FILL IN HERE *) Admitted.
+  apply T_App with TRcd_j; unfold trcd_kj, TRcd_j.
+    apply T_Abs...
+    apply T_Sub with TRcd_kj; unfold TRcd_kj, TRcd_j...
+      apply T_RCons...
+      apply subtyping_example_1.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, optional *)
@@ -464,7 +499,14 @@ Example typing_example_2 :
               (\z:C->C. {k=(\z:A.z), j=(\z:B.z)})
            : B->B *)
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  eapply T_App.
+    apply T_Abs...
+      constructor; constructor...
+      apply T_Proj with TRcd_j... eapply T_App. apply T_Var... unfold TRcd_j; constructor; constructor... apply T_Abs...
+    apply T_Abs... apply T_Sub with TRcd_kj; unfold trcd_kj, TRcd_kj, TRcd_j.
+      apply T_RCons...
+      apply subtyping_example_1.
+Qed.
 (** [] *)
 
 End Examples2.
@@ -530,7 +572,13 @@ Lemma canonical_forms_of_arrow_types : forall Gamma s T1 T2,
      exists x, exists S1, exists s2,
         s = tabs x S1 s2.
 Proof with eauto.
-  (* FILL IN HERE *) Admitted.
+  intros Gamma s T1 T2 HT V.
+  remember (TArrow T1 T2) as A. generalize dependent T2. generalize dependent T1.
+  has_type_cases (induction HT) Case; intros; try solve by inversion...
+  Case "T_Sub".
+    rewrite HeqA in H. destruct (sub_inversion_arrow _ _ _ H) as [U1 [U2 [E _]]].
+    eapply IHHT...
+Qed.
 (** [] *)
 
 Theorem progress : forall t T, 
