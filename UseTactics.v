@@ -96,7 +96,7 @@ Admitted.
 
 Theorem exists_impl: forall X (P : X -> Prop) (Q : Prop) (R : Prop),
       (forall x, P x -> Q) ->
-      ((exists x : X, P x) -> Q).
+      ((exists (x : X), P x) -> Q).
 Proof.
   introv [x H2]. eauto.
   (* same as [intros X P Q R H1 [x H2].], which is itself short 
@@ -1048,8 +1048,7 @@ Proof with eauto.
     (* old: destruct (typing_inversion_var _ _ _ Htypt) as [T [Hctx Hsub]].*)
     (* new: *) lets (T&Hctx&Hsub): typing_inversion_var Htypt.
     unfold extend in Hctx.
-    remember (beq_id x y) as e. destruct e... 
-    (* Note: [cases_if'] could be used to simplify the line above *)
+    cases_if' as Heqe...
     SCase "x=y".
       apply beq_id_eq in Heqe. subst.
       inversion Hctx; subst. clear Hctx.
@@ -1067,8 +1066,9 @@ Proof with eauto.
     (* Exercise: replace the following [destruct] with a [lets]. *)
     (* old: destruct (typing_inversion_app _ _ _ _ Htypt) 
               as [T1 [Htypt1 Htypt2]]. eapply T_App... *)
-    (* FILL IN HERE *) admit.
-    
+    lets (T1 & Htypt1 & Htypt2): typing_inversion_app Htypt.
+    eapply T_App...
+
   Case "tabs".
     rename i into y. rename t into T1.
 
@@ -1103,8 +1103,12 @@ Proof with eauto.
     (* old: assert (subtype TUnit S) 
              by apply (typing_inversion_unit _ _ Htypt)... *)
     (* new: *) lets: typing_inversion_unit Htypt...
-
-  
+  Case "tpair".
+    lets (T1&T2&Htyp1&Htyp2&H): typing_inversion_pair Htypt...
+  Case "tfst".
+    lets (T1&T2&Htyp&H): typing_inversion_fst Htypt...
+  Case "tsnd".
+    lets (T1&T2&Htyp&H): typing_inversion_snd Htypt...
 Qed.
 
 End ExamplesInstantiations.
