@@ -115,7 +115,7 @@ Lemma solving_by_apply' : forall (P Q : nat->Prop),
   (forall n, Q n -> P n) -> 
   (forall n, Q n) ->
   P 2.
-Proof. info auto. Qed.
+Proof. info_auto. Qed.
   (* The output is: [intro P; intro Q; intro H;] *)
   (* followed with [intro H0; simple apply H; simple apply H0]. *)
   (* i.e., the sequence [intros P Q H H0; apply H; apply H0]. *)
@@ -135,7 +135,7 @@ Proof. info auto. Qed.
 Lemma solving_by_eapply : forall (P Q : nat->Prop),
   (forall n m, Q m -> P n) ->
   Q 1 -> P 2.
-Proof. auto. eauto. Qed.
+Proof. auto. info_eauto. Qed.
 
 (** Remark: Again, we can use [info eauto] to see what proof [eauto]
     comes up with. *)
@@ -186,7 +186,7 @@ Lemma solving_conj_more : forall (P Q R : nat->Prop) (F : Prop),
   (F -> R 2) -> 
   Q 1 ->
   P 2 /\ F.
-Proof. jauto. (* or [iauto] *) Qed.
+Proof. intros. jauto_set; eauto. (* or [iauto] *) Qed.
 
 (** The strategy of [iauto] and [jauto] is to run a global analysis of
     the top-level conjunctions, and then call [eauto].  For this
@@ -467,8 +467,7 @@ Lemma working_of_auto_1 : forall (P : nat->Prop),
   (* Hypothesis H2: *) (forall k, P (k+1) -> P k) ->  
   (* Hypothesis H3: *) (forall k, P (k-1) -> P k) ->
   (* Goal:          *) (P 2).
-(* Uncomment "debug" in the following line to see the debug trace: *)
-Proof. intros P H1 H2 H3. (* debug *) eauto. Qed.
+Proof. intros P H1 H2 H3. debug eauto. Qed.
 
 (** The output message produced by [debug eauto] is as follows.
 <<
@@ -496,7 +495,7 @@ Lemma working_of_auto_2 : forall (P : nat->Prop),
   (* Hypothesis H3: *) (forall k, P (k-1) -> P k) ->
   (* Hypothesis H2: *) (forall k, P (k+1) -> P k) ->  
   (* Goal:          *) (P 2).
-Proof. intros P H1 H3 H2. (* debug *) eauto. Qed.
+Proof. intros P H1 H3 H2. debug eauto. Qed.
 
 (** This time, the output message suggests that the proof search 
     investigates many possibilities. Replacing [debug eauto] with
@@ -554,7 +553,7 @@ Proof. intros P H1 H3 H2. (* debug *) eauto. Qed.
     The process goes on and on, until backtracking to [P 3] and trying
     to apply [H2] three times in a row, going through [P 2] and [P 1]
     and [P 0]. This search tree explains why [eauto] came up with a  
-    proof starting with [apply H2]. *) 
+    proof starting with [apply H2]. *)
 
 
 (* ####################################################### *)
@@ -705,7 +704,32 @@ Theorem ceval_deterministic': forall c st st1 st2,
   c / st || st2 ->
   st1 = st2.
 Proof. 
-  (* FILL IN HERE *) admit.
+  intros c st st1 st2 E1 E2.
+  generalize dependent st2.
+  (ceval_cases (induction E1) Case); intros st2 E2; inversion E2; subst. 
+  Case "E_Skip". auto.
+  Case "E_Ass". auto.
+  Case "E_Seq".
+    assert (st' = st'0) as EQ1 by auto.
+    subst st'0. auto.
+  Case "E_IfTrue". 
+    SCase "b1 evaluates to true". auto.
+    SCase "b1 evaluates to false (contradiction)".
+      rewrite H in H5. inversion H5.
+  Case "E_IfFalse". 
+    SCase "b1 evaluates to true (contradiction)".
+      rewrite H in H5. inversion H5.
+    SCase "b1 evaluates to false". auto.
+  Case "E_WhileEnd". 
+    SCase "b1 evaluates to true". auto.
+    SCase "b1 evaluates to false (contradiction)".
+      rewrite H in H2. inversion H2.
+  Case "E_WhileLoop". 
+    SCase "b1 evaluates to true (contradiction)".
+      rewrite H in H4. inversion H4.
+    SCase "b1 evaluates to false".
+      assert (st' = st'0) as EQ1 by auto.
+      subst st'0. auto.
 Qed.
 
 (** In fact, using automation is not just a matter of calling [auto]
@@ -850,7 +874,11 @@ Theorem preservation' : forall t t' T,
   t ==> t'  ->
   has_type empty t' T.
 Proof.
-  (* FILL IN HERE *) admit.
+  remember (@empty ty) as Gamma.
+  introv HT.
+  gen t'.
+  induction HT; intros t' HE; inversion HE; subst*.
+  apply* substitution_preserves_typing. inversion* HT1.
 Qed.
 
 
@@ -893,7 +921,12 @@ Theorem progress' : forall t T,
   has_type empty t T ->
   value t \/ exists t', t ==> t'.
 Proof.
-  (* FILL IN HERE *) admit.
+  introv Ht.
+  remember (@empty ty) as Gamma.
+  has_type_cases (induction Ht) Case; subst*.
+  inversion H.
+  destruct* IHHt1. destruct* IHHt2. inversion H; subst; try solve by inversion. eauto.
+  destruct* IHHt1. destruct t1; try solve by inversion; eauto.
 Qed.
 
 End PreservationProgressStlc.
@@ -936,7 +969,10 @@ Qed.
 Theorem multistep_eval_ind : forall t v,
   t ==>* v -> forall n, C n = v -> t || n.
 Proof.
-  (* FILL IN HERE *) admit.
+  introv MST vEq.
+  induction* MST; subst.
+  constructor.
+  apply* step__eval.
 Qed.
 
 (** Exercise: using the lemma above, simplify the proof of
@@ -947,7 +983,8 @@ Qed.
 Theorem multistep__eval' : forall t v,
   normal_form_of t v -> exists n, v = C n /\ t || n.
 Proof.
-  (* FILL IN HERE *) admit.
+  introv NFO. inverts NFO as; intros Hs Hnf. apply nf_same_as_value in Hnf.
+  inverts Hnf. exists n. split*. apply* multistep_eval_ind.
 Qed.
 
 (** If we try to combine the two proofs into a single one,
@@ -1275,7 +1312,10 @@ Lemma abs_arrow' : forall x S1 s2 T1 T2,
      subtype T1 S1 
   /\ has_type (extend empty x S1) s2 T2.
 Proof.
-  (* FILL IN HERE *) admit.
+  introv Hty.
+  lets (S2 & Hsub & Hty'): typing_inversion_abs Hty.
+  lets (U1 & U2 & Heq & Hsub1 & Hsub2): sub_inversion_arrow Hsub.
+  inverts* Heq.
 Qed.
 
 (** The lemma [substitution_preserves_typing] has already been used to
@@ -1290,7 +1330,7 @@ Lemma substitution_preserves_typing : forall Gamma x U v t S,
   has_type empty v U ->
   has_type Gamma ([x:=v]t) S.
 Proof.
-  (* FILL IN HERE *) admit.
+  admit.
 Qed.
 
 End SubtypingInversion.
@@ -1597,7 +1637,7 @@ Hint Resolve subtype_trans.
 Lemma transitivity_bad_hint_1 : forall S T,
   subtype S T.
 Proof. 
-  intros. (* debug *) eauto. (* Investigates 106 applications... *)
+  intros. debug eauto. (* Investigates 106 applications... *)
 Admitted.
 
 (** Note that after closing the section, the hint [subtype_trans]
@@ -1677,7 +1717,7 @@ Hint Extern 1 (subtype ?S ?U) =>
 Lemma transitivity_workaround_1 : forall T1 T2 T3 T4,
   subtype T1 T2 -> subtype T2 T3 -> subtype T3 T4 -> subtype T1 T4.
 Proof.
-  intros. (* debug *) eauto. (* The trace shows the external hint being used *)
+  intros. debug eauto. (* The trace shows the external hint being used *)
 Qed.
 
 (** We may also check that the new external hint does not suffer from the 
@@ -1686,7 +1726,7 @@ Qed.
 Lemma transitivity_workaround_2 : forall S T,
   subtype S T.
 Proof.
-  intros. (* debug *) eauto. (* Investigates 0 applications *)
+  intros. debug eauto. (* Investigates 0 applications *)
 Admitted.
 
 
